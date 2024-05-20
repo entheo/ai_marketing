@@ -38,8 +38,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'corsheaders',
+    'account',
     'llmapi',
-    'aimarketing',
 ]
 
 MIDDLEWARE = [
@@ -54,8 +54,11 @@ MIDDLEWARE = [
 ]
 
 CORS_ORIGIN_WHITELIST = [
-    "http://localhost:8092",
+    "http://localhost:8093",
 ]
+
+CORS_ALLOW_CREDENTIALS = True
+CSRF_TRUSTED_ORIGINS = ['http://localhost:8093']
 
 
 ROOT_URLCONF = 'backend.urls'
@@ -113,6 +116,13 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# settings.py
+AUTH_USER_MODEL = 'account.Users'
+
+# 使用数据库存储session
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+# 允许session过期时间设置
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 # Internationalization
 # https://docs.djangoproject.com/en/3.2/topics/i18n/
