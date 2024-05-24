@@ -61,14 +61,7 @@ CORS_ORIGIN_WHITELIST = [
 
 CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = ['http://localhost:8081']
-CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
-]
+
 
 ROOT_URLCONF = 'backend.urls'
 
@@ -143,7 +136,7 @@ SIMPLE_JWT = {
     'UPDATE_LAST_LOGIN': False,
 
     'ALGORITHM': 'HS256',
-    'SIGNING_KEY': 'WETOUCHcnisthebest',
+    'SIGNING_KEY': '你的秘密密钥',
     'VERIFYING_KEY': None,
     'AUDIENCE': None,
     'ISSUER': None,

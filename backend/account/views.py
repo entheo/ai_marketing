@@ -1,12 +1,27 @@
 from django.shortcuts import render
-from datetime import timedelta
+from datetime import timedelta,datetime
 from django.utils import timezone
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate,login
 from rest_framework import status
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .serializers import UserRegistrationSerializer
+from marketing.models import Brand
+from .models import Users 
+from rest_framework.permissions import IsAuthenticated
+
+def get_created_brands(username):
+    try:
+        creator = Users.objects.get(username=username)
+        #res = creator.brands.all()
+        res = creator.brands.values_list('chinese_name',flat=True)
+    except ObjectDoesNotExist:
+        print(f"用户{username}不存在")
+        raise ValueError(f"{some_user_id} 用户不存在")
+    return res
+
 
 class RegisterAPIView(APIView):
     def post(self, request):
@@ -20,20 +35,39 @@ class RegisterAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class LoginAPIView(APIView):
+    
+    def get_tokens_for_user(self,user,keep_logged_in_for_days):
+       refresh = RefreshToken.for_user(user)
+       refresh.lifetime = timedelta(days=keep_logged_in_for_days)
+       access_token = refresh.access_token
+       print('access_token',access_token)
+
+       return {
+            'refresh': str(refresh),
+            'access': str(access_token),
+        }
+
     def post(self, request):
         keep_logged_in_for_days = int(request.data.get('keep_logged_in_for_days', 7))
-        print(type(keep_logged_in_for_days),keep_logged_in_for_days)
         username = request.data.get('username')
         password = request.data.get('password')
         user = authenticate(username=username, password=password)
         print('USER:',user)
         if user:
+            token = self.get_tokens_for_user(user,keep_logged_in_for_days)
             login(request,user)
-            if keep_logged_in_for_days > 0:  # 验证用户选择的天数是否大于0
-            # 设置session过期时间为指定天数
-                seconds_to_keep_logged_in = keep_logged_in_for_days * 86400  # 24 hours * 60 minutes * 60 seconds
-                request.session.set_expiry(seconds_to_keep_logged_in) 
-            # 这里简化处理，实际项目中应当返回token
-            return Response({"message": "loggedIn",'username':username}, status=status.HTTP_200_OK)
+            #created_brands = get_created_brands(username)
+            
+            return Response({"message": "loggedIn",'username':username,'token':token}, status=status.HTTP_200_OK)
         return Response({"message": "用户名或密码错误"}, status=status.HTTP_400_BAD_REQUEST)
 
+class AuthAPIView(APIView):
+    permission_classes = [IsAuthenticated]  # 使用JWT验证
+
+    def get(self, request, *args, **kwargs):
+        try:
+          created_brands = get_created_brands(request.user.username)
+          print(created_brands)
+        except:
+            pass
+        return Response({'auth':'success','username':request.user.username,'created_brands':created_brands})

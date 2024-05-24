@@ -21,4 +21,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/',include('llmapi.urls')),
     path('account/',include('account.urls')),
+    path('marketing/',include('marketing.urls')),
 ]
