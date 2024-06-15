@@ -24,8 +24,21 @@ class SimpleAPIView(APIView):
     #@api_view(['POST'])
     def post(self,request):
         print('接收到数据....')
+        print('REQUEST:',request)
         form_data = request.data   # request.data 中包含了传送过来的 formData
         print(form_data)
+        
+        
+        
+        '''
+        # 在这里处理你的表单数据
+        prompt['context'] = form_data.get('context')
+        prompt['goal'] = form_data.get('goal')
+        prompt['style'] = form_data.get('style')
+        prompt['tone ']= form_data.get('tone')
+        prompt['audience'] = form_data.get('audience')
+        prompt['output'] = form_data.get('output')
+        '''
         message = kimi_bot.response(**form_data)
         response = Response({"message":message}, status=status.HTTP_200_OK) 
         return response
@@ -36,21 +49,18 @@ def format_prompt(request):
         print('REQUEST：',request.body);
         data = json.loads(request.body.decode('utf-8'))  # 解析JSON数据
         print('接收到的信息：',data)
-        
-        #messages = data['_value']
-        res = kimi_bot.response(**data)
+        messages = data['_value']
+        res = kimi_bot.response(**messages)
     return JsonResponse(res,safe=False)
 
-
-#获取分析与建议
 @csrf_exempt
 def get_advice(request):
     if request.method == 'POST':
         print('REQUEST：',request.body);
-        data = json.loads(request.body.decode('utf-8'))
-        print('RECEIVED DATA:',data)
+        data={}
+        data['copyData'] = json.loads(request.body.decode('utf-8'))
+        print('DATA:',data)
         response = kimi_bot.response(**data)
-        print('已获得建议:',response)
         res = json.loads(response)
         print(type(res))
         print(res)
@@ -120,12 +130,5 @@ def extract_information(raw_data):
 
 
 
-@csrf_exempt
-def test_response(request):
-    if request.method=='POST':
-        print('REQUEST：',request.body);
-        data = json.loads(request.body.decode('utf-8'))  # 解析JSON数据
-        print('接收到的信息：',data)
-        
-        res = json.dumps(data)
-    return JsonResponse(res,safe=False)
+
+

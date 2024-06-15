@@ -1,3 +1,4 @@
+from django.middleware.csrf import get_token
 from django.shortcuts import render
 from datetime import timedelta,datetime
 from django.utils import timezone
@@ -19,8 +20,17 @@ def get_created_brands(username):
         res = creator.brands.values_list('chinese_name',flat=True)
     except ObjectDoesNotExist:
         print(f"用户{username}不存在")
-        raise ValueError(f"{some_user_id} 用户不存在")
+        raise ValueError(f"{username} 用户不存在")
     return res
+
+def get_created_campaigns(username):
+   try:
+       creator = Users.objects.get(username=username)
+       res = creator.campaigns.values_list('title',flat=True)
+   except ObjectDoesNotExist:
+       print(f"用户{username}不存在")
+       raise ValueError (f"{username}用户不存在")
+   return res
 
 
 class RegisterAPIView(APIView):
@@ -56,18 +66,21 @@ class LoginAPIView(APIView):
         if user:
             token = self.get_tokens_for_user(user,keep_logged_in_for_days)
             login(request,user)
+            csrf_token = get_token(request)
             #created_brands = get_created_brands(username)
-            
-            return Response({"message": "loggedIn",'username':username,'token':token}, status=status.HTTP_200_OK)
+            resp = Response({"message": "loggedIn",'username':username,'token':token,'csrf_token':csrf_token}, status=status.HTTP_200_OK)
+            resp.set_cookie('csrf_token',csrf_token)
+            return resp    
         return Response({"message": "用户名或密码错误"}, status=status.HTTP_400_BAD_REQUEST)
 
 class AuthAPIView(APIView):
     permission_classes = [IsAuthenticated]  # 使用JWT验证
-
+    
     def get(self, request, *args, **kwargs):
+        print('开始验证')
         try:
           created_brands = get_created_brands(request.user.username)
-          print(created_brands)
+          created_campaigns = get_created_campaigns(request.user.username)
         except:
             pass
-        return Response({'auth':'success','username':request.user.username,'created_brands':created_brands})
+        return Response({'auth':'success','username':request.user.username,'created_brands':created_brands,'created_campaigns':created_campaigns})

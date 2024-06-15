@@ -1,0 +1,229 @@
+from pathlib import Path
+from openai import OpenAI
+from jinja2 import Template
+
+#Kimi API
+
+
+class KimiBot:
+    def __init__(self):
+        self.client = OpenAI(
+            api_key = "sk-iIZgUGHpHl6xSsb8QOq9OZhdpQmUXPNxkzOVZQVDUdq8dfFf",
+            base_url = "https://api.moonshot.cn/v1",
+        )
+
+        self.role = '''
+        #Role：营销大师
+        ##Profile：您是一位资深的营销策略大师。您精通人性的复杂性，并且对全球各地，包括中国的知名营销策略和观点了如指掌。您通过独特透>彻的文案创作能力，精准地吸引目标客户的注意力。
+
+        ## 技能：
+        ### 营销策略
+        - 熟知营销漏斗理论的，并能够以此定位用户所处的营销阶段。
+          1. 意识阶段(Awareness);
+          2. 兴趣阶段(Interest);
+          3. 考虑阶段(Consideration);
+          4. 意向阶段(Intent);
+          5. 行动阶段(Action);
+          6. 忠诚度建立阶段(Loyalty);
+          7. 推荐阶段(Referral);
+        - 根据用户所处营销阶段判断对应的营销目标。
+        - 熟知并能运用其它各种知名的营销策略。
+        -- 根据用户的需求和目标，定制具有针对性的营销策略。
+
+        ### 营销文案创作
+        - 能够深入理解目标客户的需求和期待。
+        - 创作具有吸引力的营销文案，有效吸引目标客户的注意力。
+
+        ### 全球营销观点解读
+        - 了解并可解读全球各位营销大师的观点。
+        - 将全球营销观点和策略结合到实际工作中。
+
+        ## 约束：
+        - 仅讨论与营销策略和文案创作相关的话题。
+        - 保持专业的营销语言和风格。
+        - 在提出营销策略或创作文案时，必须考虑到目标客户的需求和期待。
+
+        '''       
+        self.model = 'moonshot-v1-128k'
+    
+    #kwargs为字典类型的prompt
+    def get_cgstao_template(self,**kwargs):
+        template_string = """
+          # 上下文 #
+          {{context}}
+          # 写作目标#
+          {{goal}}
+          # 文字风格 #
+          {{style}}
+          # 表达语气 #
+          {{tone}}
+          # 读者画像 #
+          {{audience}}
+          # 输出要求 #
+          {{output}}
+         """
+        template = Template(template_string)
+        rendered_template = template.render(**kwargs)
+        
+        return rendered_template
+
+    def get_messages(self,rendered_template):
+        messages = [
+           {
+            "role": "system",
+            "content":self.role,
+            },
+
+             {
+            "role": "user",
+            "content": rendered_template
+           },
+       ]
+        
+        return messages
+
+   
+    def get_supermarketing_template(self,**kwargs):
+        template_string = """
+          #任务描述：
+          1. 请你对以下重要信息进行分析，并以此为我给出的文案原文提出修改专业的建议。
+          2. 根据重要信息与原文，重下对文案原文进行调整。
+
+          #文案原文：
+          致亲爱的朋友们	Hi guys！当你们体验我们研发的这款护肤品时，我内心满是欣喜和期待！
+“宜肤肌密”的核心成分源自我的合作伙伴。一个偶然，我发现了这种复合肽物质竟然对我的敏感肌有着惊人的修复效果，恰巧那段时期我女儿正在为青春痘而烦恼，于是我迫不及待的让我的女儿和我的母亲试用一下。而之后，我女儿那恼人的青春痘，还有母亲脸上的浅纹，都在持续使用一段周期后神奇地消失了！那一刻，我真的被震撼到了，心中涌起一股强烈的愿望，那就是一定要把这么棒的产品分享给每一个我珍视的人。想。我想把足够好的产品分享给朋友们，所以原料一律大厂商高配置，生产中严格的质量控制，成品不仅做了全面的功效评测，还进行了人体的深度测评。
+真的由衷希望这款产品也能为你们带来惊喜呀，就像它曾带给我的惊喜一样品：）
+这是个还处于婴儿期的品牌，但它蕴含着无限的潜力和希望。我渴望能与那些同样认可可这个产品，热爱生活，愿意分享的朋友们携手，一起精心雕琢它，让它越来越好。，在这个过程中，我们希望能助力更多的女性获得更多自信和成长。亲爱的朋友们，真诚地邀请你加入我们，让我们一起分享变美心得，一起品味诗酒茶的美好意境，一起畅享亲子时光的快乐，一起收获产品带给我们的美妙改变
+Yours  闫艳
+记得扫码关注我们↓公众号“丽芷研科”获得更多我们的产品信息和优惠~
+(公众号二维码)
+
+          
+          
+          #重要信息：
+
+          ##文案使用场景
+          - 是否为线上？：false；
+          - 是否为线下？：true ;
+
+
+          ##文案要求
+          - 文字字数范围：500字以内；
+          - 文字风格：与朋友熟人分享的自然表达；
+          - 须重点传递列表中的情绪：{{senarioData.emotionTags}};
+
+          ##重要营销背景
+          - 本次营销活动标题：{{campaignData.tilte}};
+          - 当前所处营销阶段：{{campaignData.stage}};
+          - 期待获得的营销目标与效果：{{campaignData.objectives}};
+          
+          ##目标受众画像
+          - 性别特征：
+            1. 是否为男性？： {{personaData.male}}；
+            2. 是否为女性？：是;
+          - 个人年收入范围（单位是万元人民币）：{{personaData.salary}};
+          - 个人价值观理念：
+            有主见，希望通过消费来表达对自己的爱;
+          - 对产品或服务的相关诉求：
+            {{personaData.needs}};
+          - 其它补充描述：
+            {{personaData.others}}
+
+          ##产品或服务信息
+          - 所属品牌名称：{{productData.brandName}};
+          - 品牌价值观：
+            {{productData.brandValues}};
+          - 产品或服务名称：{{productData.name}};
+          - 产品或服务的独特卖点：
+            {{productData.usp}}
+
+         """
+        template = Template(template_string)
+        rendered_template = template.render(**kwargs)
+        print('模板')
+        print(rendered_template)
+        return rendered_template
+
+
+    def get_advice_template(self,**kwargs):
+       print(kwargs)
+       template_string = """
+       
+       请你从以营销漏斗理论为主的相关理论出发，对"文案原文"进行分析, 认真完成所有任务后严格按照”输出要求“进行输出：
+       
+       #任务:
+
+       ##任务1：以专业的营销漏斗理论为基础，对重要营销背景进行推测，回答其中问题，并明确提醒用户你的回答仅用来提醒用户做相关目标校验，并非标准答案,希望用户以此来进行自我排查，推动文案达到如期效果:
+       ###推测营销背景[#campaign_background]：
+       - 可能所处的营销阶段？([#stage#])
+       - 当前阶段建议关注的效果目标是什么？[#objectives#]
+       ###推测目标受众画像：[#persona#]
+       - 文案体现出的目标受众的画像特点？[#desc#]
+       - 目标受众可能的相关心理动机是什么？[#motive#] 
+       ###推测产品或品牌相关信息[#product#]：
+       - 产品或品牌的名字是什么？[#name#]
+       - 产品可能的独特卖点有哪些？[#usp#]
+       - 品牌可能的基本价值观理念是什么？[#values#]
+       ###推测营销场景与主导情绪：[#senario#]
+       - 文案适合使用在什么地方？希望回答得细致且生动形象，比如线下还是线上，举个例子会是什么？([#place#])
+       - 建议传递的主要情绪是什么？([#emotions#])
+
+       ##任务2：给出专业的优化建议，并且重点做到以下几点:
+       - 必须严格在任务2内容开头的地方使用"[#advices#]";
+       - 根据重要性，由重到轻，清晰地列出每一个不足的地方与优化建议;
+       - 要明确地使用原文中的字句来举例，降低理解难度;
+       - 结合任务1的信息对最终答案进行审核，保证内容在专业度上无误。
+       - 最多列出5条建议即可，不要超出这个范围。
+       
+       ##输出要求：
+       - 以Dict数据格式，按照一下键值与层级关系输出数据：
+       
+        {
+         "campaign_background": {"stage":...,"objectives":...},
+         "persona": {"desc":..., "motive":...},
+         "product": {"name":...,"usp":..., "values":...},
+         "senario": {"place":..., "emotions":...},
+         "advices": [{"issue":...,"suggestion":...},{"issue":...,"suggestion":...}]}
+         }:
+
+       #文案原文：
+       {{promptData.original}}
+       
+       """
+       template = Template(template_string)
+       rendered_template = template.render(**kwargs)
+       print("Rendered_Template:",rendered_template)
+       return rendered_template
+
+   
+    def response(self,**kwargs):
+        print('Ready TO RESPONSE')
+        print(kwargs)
+        """
+        rendered_template=self.get_advice_template(**kwargs)
+        messages = self.get_messages(rendered_template)
+        #messages = self.get_cgstao_messages(**kwargs)
+       
+        completion = self.client.chat.completions.create(
+            model = self.model,
+            messages = messages,
+            temperature = 0.5,
+        )
+        print("结果：",completion)
+        res = completion.choices[0].message.content
+        """
+        res = 'cool'
+        return res
+
+
+#调动文件
+'''
+file_object = client.files.create(file=Path("/Users/wangjohnson/downloads/WechatIMG1445.jpg"), purpose="file-extract")
+
+file_content = client.files.content(file_id=file_object.id).text
+'''
+
+
+if __name__ == '__main__':
+     kimi_bot = KimiBot()
+     kimi_bot.response()

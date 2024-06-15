@@ -9,6 +9,7 @@ from . import views
 urlpatterns = [
     #path('', include(router.urls)),
     path('brands/',views.BrandAPIView.as_view(),name='brands'),
+    path('campaigns/',views.CampaignAPIView.as_view(),name='campaigns'),
     #path('product/create/',views.create_product,name='create_product'),
     #path('product/persona/',views.create_persona,name='create_persona')
 ]

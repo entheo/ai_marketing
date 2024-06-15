@@ -6,30 +6,37 @@ from rest_framework.response import Response
 # Create your views here.
 
 from rest_framework import viewsets
-from .models import Brand
-from .serializers import BrandSerializer
+from .models import Brand,Campaign
+from .serializers import BrandSerializer, CampaignSerializer
 
+#Brand视图
 class BrandAPIView(APIView):
     permission_classes = [IsAuthenticated]  # 使用JWT验证
 
     def post(self, request, *args, **kwargs):
         print(request.data)
         serializer = BrandSerializer(data=request.data)
-        print(serializer)
-        print(serializer.is_valid())
-        print(serializer.errors) 
         if serializer.is_valid():
             serializer.save(creator=request.user)
             return Response(serializer.data, status=201)
         return Response(serializer.errors, status=400)
 
-class BrandViewSet(viewsets.ModelViewSet):
+#Campaign视图
+class CampaignAPIView(APIView):
     permission_classes = [IsAuthenticated]
-    queryset = Brand.objects.all()
-    serializer_class = BrandSerializer
-    '''
-    def create(self, request, *args, **kwargs):
-        print('请求体:', request.data)  # 打印请求数据
-        return super().create(request, *args, **kwargs)
-    '''
+
+    def post(self,request,*args,**kwargs):
+        print(request.data)
+        serializer = CampaignSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(creator = request.user)
+            return Response(serializer.data,status=201)
+        return Response(serializer.errors,status=400)
+    
+    def get(self,request,*args,**kwargs):
+        permission_classes = [IsAuthenticated]
+        res = Campaign.objects.filter(creator=request.user)
+        serializer = CampaignSerializer(res,many=True)
+        return Response(serializer.data,stauts=200)
+
 
