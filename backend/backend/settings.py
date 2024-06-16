@@ -56,11 +56,11 @@ MIDDLEWARE = [
 ]
 
 CORS_ORIGIN_WHITELIST = [
-    "http://localhost:8088",
+    "http://localhost:8089",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = ['http://localhost:8088']
+CSRF_TRUSTED_ORIGINS = ['http://localhost:8089']
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
