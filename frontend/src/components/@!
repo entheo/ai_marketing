@@ -1,0 +1,116 @@
+<template>
+    <n-form label-placement="left" require-mark-placement="right-hanging" label-width="185" size="large">
+
+        <n-form-item label="计划将文案用在哪里？" size="large">
+            <n-radio-group 
+                v-model:value="senarioInfo.places" 
+                size="large"
+                name="radiobuttongroup1"
+                @update:value="getPlace">
+        
+                <n-radio-button
+                    v-for="place in places"
+                    :key="place.value"
+                    :value="place.value"
+                    :label="place.label"/> 
+            </n-radio-group>
+        </n-form-item>
+
+        <n-form-item label="补充描述使用场景:" v-show="otherPlace">        
+                <n-input 
+                v-show="otherPlace" 
+                v-model:value='senarioInfo.place' placeholder=""
+                ref="inputInstRef"/>
+            
+        </n-form-item>
+         
+         <n-form-item label="期待传递出的情绪是？">
+         <n-dynamic-tags v-model:value="senarioInfo.emotionTags" :render-tag="renderEmotionTags" />
+         </n-form-item>
+         
+        <n-button v-show="false" type="primary" @click="createSenario">保存</n-button>
+    </n-form>
+</template>
+
+<script setup>
+import {ref,h, defineEmits,defineExpose} from 'vue';
+import {NRadioGroup,NRadioButton,NButton, NForm, NInput, NFormItem,  NTag,NDynamicTags} from 'naive-ui';
+
+const inputInstRef=ref(null);
+const otherPlace=ref(false);
+const places = [
+    {
+        value:"微信朋友圈",
+        label:"微信朋友圈",
+        },
+    {
+        value:"微信群",
+        label:"微信群",
+        },
+    {
+        value:"小红书",
+        label:"小红书",
+        },
+    {
+        value:"电商/商品详情页",
+        label:"电商/商品详情页",
+        },
+
+    {
+        value:"其它...",
+        label:"其它",
+        },
+];
+const getPlace = (message)=>{
+    if(message==="其它..."){
+        otherPlace.value=true;
+        console.log(inputInstRef.value?.focus());
+        inputInstRef.value?.focus();
+        }
+    else{
+        otherPlace.value=false;
+        }
+    console.log(message)};
+
+const emotionTagsRef = ref(["喜悦", "幽默"]);
+const senarioInfo = ref({
+    places:'',
+    emotionTags: emotionTagsRef,
+
+    })
+const renderEmotionTags = (tag, index) => {
+      return h(
+          NTag,
+          {
+            type: index < 3 ? "success" : "error",
+            disabled: index > 3,
+            closable: true,
+            onClose: () => {
+              emotionTagsRef.value.splice(index, 1);
+            }
+          },
+           ()=> tag
+        )
+}
+const emit = defineEmits(['senarioInfoCreated']);
+const createSenario = () =>{
+      console.log('to create senario');
+      console.log(senarioInfo.value);
+      emit('senarioInfoCreated',senarioInfo.value);
+      try{
+          /*
+          const resp =  await axios.get('http://localhost:8005/account/auth/',{
+            headers: {
+                'Authorization': `Bearer ${token}` // 设置请求头
+                }});
+         */ }catch (error) {
+        console.error('Failed to fetch user info:', error);
+        }
+      }
+defineExpose({createSenario});
+</script>
+<script>
+  export default{
+      name:'CreateSenarioForm'
+      };
+</script>

@@ -1,0 +1,76 @@
+<template>
+<n-form>
+
+    <n-form-item label="gender">
+        <n-h5>重要性别</n-h5>
+        <n-checkbox v-model:checked="personaInfo.gender">
+           男性
+        </n-checkbox>
+        <n-checkbox v-model:checked="personaInfo.gender" :disabled="disabled">
+           女性
+        </n-checkbox>
+    </n-form-item>
+    
+    <n-form-item label="gender">
+        <n-h5>年收入范围</n-h5>
+        <n-input pair
+          separator="-"
+          :placeholder="placeholder"
+          clearable
+          @blur="handleInputBlur"
+          @focus="handleInputFocus"
+          @change="handleInputChange"
+          @update:value="handleInputInput">
+        </n-input>
+    </n-form-item>
+
+    <n-form-item v-model:value='personaInfo.values' label="values">
+        <n-h5>价值观理念</n-h5>
+        <n-input type="textarea"/>
+    </n-form-item>
+
+    <n-form-item v-model:value="personaInfo.needs" label="needs">
+        <n-h5>与产品相关的诉求</n-h5>
+        <n-input type="textarea"></n-input>
+    </n-form-item>
+    
+    <n-form-item v-model:value="personaInfo.others" label="others">
+        <n-h5>其它补充</n-h5>
+        <n-input type="textarea"/>
+    </n-form-item>
+        
+        <n-button  @click="createPersona">提交</n-button>
+    </n-form>
+</template>
+
+<script setup>
+//import axios from 'axios';
+import {ref} from 'vue';
+import { NButton, NForm,NFormItem, NInput, NH5, NCheckbox} from 'naive-ui';
+const personaInfo = ref({
+    gender: '',
+    values: '',
+    needs : '',
+    others : '',
+    })
+const createPersona = async() =>{
+      console.log('persona');
+      console.log(personaInfo.value);
+      /*try{
+          
+          const resp =  await axios.get('http://localhost:8005/account/auth/',{
+            headers: {
+                'Authorization': `Bearer ` // 设置请求头
+                }});
+          }catch (error) {
+        console.error('Failed to fetch user info:', error);
+        }*/
+        
+      }
+
+</script>
+<script>
+  export default{
+      name:'CreatePersonaForm'
+      };
+</script>

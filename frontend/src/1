@@ -1,0 +1,251 @@
+<template>
+<div class="page-container" style="height: 100vh; overflow: hidden;text-align:left">
+  <div class="flex-container" style="display: flex; justify-content: space-between;height:100%">
+    <n-card style="width: 45%;height:100%;overflow-y:auto">
+      
+      <n-card embedded>
+      还未建立品牌档案？
+      <n-button @click="activate('left')" secondary>添加</n-button>
+      
+      </n-card>
+
+      <n-card embedded>
+      还未建立产品档案?
+      <n-button secondary>添加</n-button>
+      </n-card>
+      
+      <n-form @submit.prevent="submitForm"> 
+        <n-card title="当前品牌" embedded>
+            <n-select v-model:value="selectValue" :options="options" />
+         <n-button @click="activate('left')">
+            详情
+          </n-button>
+        </n-card>
+
+        <n-card title="当前产品" embedded>
+          <n-select v-model:value="selectValue" :options="options" />
+          <n-button @click="activate('left')">
+            详情
+          </n-button>
+        </n-card>
+        <n-card :bordered="false">
+        <n-form-item label="上下文">
+          <n-h5 prefix="bar">上下文</n-h5>
+          <n-input v-model:value="formData.context" round clearable size="large" type="textarea" placeholder="上下文"></n-input>
+        </n-form-item>
+        </n-card>
+         <n-card :bordered="false">
+        <n-form-item label="写作目标">
+          <n-h5 prefix="bar">写作目标</n-h5>
+          <n-input v-model:value="formData.goal"  round clearable size="large" type="textarea" placeholder="写作目标"></n-input>
+        </n-form-item>
+        </n-card>
+         <n-card :bordered="false">
+        <n-form-item label="行文风格">
+         <n-h5 prefix="bar">行文风</n-h5>
+         <n-input v-model:value="formData.style"  round clearable size="large" type="textarea" placeholder="行文风格"></n-input>
+        </n-form-item>
+        </n-card>
+         <n-card :bordered="false">
+        <n-form-item label="情绪语气">
+          <n-h5 prefix="bar">情绪语气</n-h5>
+          <n-input v-model:value="formData.tone"  round clearable size="large" type="textarea" placeholder="情绪语气"></n-input>
+        </n-form-item>
+        </n-card>
+        <n-card :bordered="false">
+        <n-form-item label="受众画像">
+          <n-h5 prefix="bar">受众画像</n-h5>
+          <n-input v-model:value="formData.audience"  round clearable size="large" type="textarea" placeholder="受众画像"></n-input>
+        </n-form-item>
+        </n-card>
+        <n-card :bordered="false">
+        <n-form-item label="输出要求">
+          <n-h5 prefix="bar">输出要求</n-h5>
+          <n-input v-model:value="formData.output"  round clearable size="large" type="textarea" placeholder="输出要求"></n-input>
+        </n-form-item>
+        </n-card>
+        <n-button type="primary" @click="submitForm">提交</n-button>
+      </n-form>
+      
+      <!--品牌信息-->
+       <n-drawer v-model:show="active" :width="502" :placement="placement">
+             <n-drawer-content title="brandInfo">
+               <n-card>
+               <n-form @submit.prevent="newBrandForm">
+                 <n-form-item label="name">
+                   <n-h5 prefix="bar">品牌名称</n-h5>
+                   <n-input v-model:value="newBrand.cn_name" clearable size="large" type="text" placeholder="中文名称"></n-input>
+                   <n-input v-model:value="newBrand.en_name" clearable size="large" type="text" placeholder="英文名称"></n-input>
+
+                </n-form-item>
+                 <n-form-item label='values'>
+                   <n-h5 prefix="bar">价值观理念</n-h5>
+                   <n-input v-model:value="newBrand.values" round clearable size="large" type="textarea"></n-input>
+                 </n-form-item> 
+              <n-button type="primary" @click="newBrandForm">提交</n-button> 
+               </n-form>
+             </n-card>  
+             </n-drawer-content>
+         </n-drawer>
+    
+    </n-card>
+    <n-card style="width: 55%;height:100%;overflow-y:auto">
+      {{message}}
+    </n-card> 
+
+
+  </div>
+</div>
+</template>
+
+<script setup>
+  import { NButton, NForm, NCard, NInput, NH5, NSelect, NDrawer} from 'naive-ui'
+  import {ref } from 'vue'
+  
+  const active = ref(false)
+  const placement = ref("right")
+  const activate = (place) => {
+    active.value = true
+    placement.value = place
+  }
+  const selectValue = ref(null)
+  const options = [
+        {
+          label: "Everybody's Got Something to Hide Except Me and My Monkey",
+          value: "song0",
+          disabled: true
+        },
+        {
+          label: "Drive My Car",
+          value: "song1"
+        },
+        {
+          label: "Norwegian Wood",
+          value: "song2"
+        },
+        {
+          label: "You Won't See",
+          value: "song3",
+          disabled: true
+        }]
+</script>
+
+<script>
+  import axios from 'axios';
+  
+  // 用于获取csrftoken的函数
+  function getCsrfToken() {
+    let csrfToken = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.startsWith('csrftoken=')) {
+          csrfToken = decodeURIComponent(cookie.substring('csrftoken='.length));
+          break;
+        }
+      }
+    }
+    return csrfToken;
+  }
+
+  
+  export default{
+      setup(){
+          const csrfToken = ref(getCsrfToken());
+          const authStore = useAuthStore();
+          console.log(authStore.isLoggedIn); // 访问状态
+          
+          const  newBrandForm = () => {
+            axios.post('http://localhost:8005/marketing/brand/create/', this.newBrand,
+              {
+                withCredentials: true,  
+                headers: {
+                  'X-CSRFToken': csrfToken.value,  // 使用组件状态中的CSRF token
+                }
+              }
+            )
+            .then(response => {
+              // 处理你后端返回的response
+              console.log(response);
+              this.message = response.data.message;
+          })
+            .catch(err => {
+              console.log(err);
+          });
+        },
+          
+      data() {
+          return {
+              message: '', // 定义message变量，用于存储api返回的数据
+              formData:{
+              context:'',
+              goal:'',
+              style:'',
+              tone:'',
+              audience:'',
+              output:''
+              },
+              newBrand:{
+                  cn_name:'',
+                  en_name:'',
+                  values:'',
+                  audience:'',
+                  }
+      }
+    },
+
+      methods: {
+        handleClick() {
+          axios.get('http://localhost:8005/api/response/?format=json')  //你的Django后端API的endpoint
+            .then(response => {
+               //在这里处理你的数据。response.data将包含你的数据。
+               console.log(response.data);
+               this.message = response.data.message;
+            })
+            .catch(error => {
+               //在这里处理错误
+               console.error(error);
+            });
+          },
+
+        submitForm() {
+          axios.post('http://localhost:8005/api/response/', this.formData)
+            .then(response => {
+              // 处理你后端返回的response
+              console.log(response);
+              this.message = response.data.message;
+          })
+            .catch(err => {
+              console.log(err);
+          });
+        },
+
+        newBrandForm(){
+            axios.post('http://localhost:8005/marketing/brand/create/', this.newBrand,
+              {
+                headers: {
+                  'X-CSRFToken': csrfToken.value,  // 使用组件状态中的CSRF token
+                }
+              }
+            )
+            .then(response => {
+              // 处理你后端返回的response
+              console.log(response);
+              this.message = response.data.message;
+          })
+            .catch(err => {
+              console.log(err);
+          });
+        },
+      },
+
+      mounted() {
+  }
+}
+</script>
+n-form-item {
+    padding:20px;
+    }
+<style>
+</style>

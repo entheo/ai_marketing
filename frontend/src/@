@@ -1,0 +1,300 @@
+<template>
+<n-layout position="absolute">
+  <n-layout-header style="height: 64px; padding: 24px" bordered>
+  步步为营
+  </n-layout-header>
+    <n-layout-content>  
+      
+      <!--操作界面-->
+      <n-grid  cols="2 s:2 m:2 l:6 xl:6 2xl:6" responsive="screen">
+        <n-card>
+        <n-grid-item span=1>
+            <n-button @click="showGuideModal=true" size="large" type="Info">写一篇新文案</n-button>
+        </n-grid-item>
+
+        <n-grid-item span=1>
+            <n-button @click="showInputCopyModal=true" size="large" type="Primary">点评已有文案</n-button>
+        </n-grid-item> 
+        </n-card>
+      </n-grid>
+
+      <n-card :title="已创建列表" :bordered="false" v-if="userInfo.created_campaigns">
+        <n-card v-for="cam in userInfo.created_campaigns" :key="cam.id || cam" >
+          {{cam}}
+        </n-card>
+      </n-card>
+  </n-layout-content>
+
+  <n-layout-footer position="absolute">
+    footer
+  </n-layout-footer>
+
+</n-layout>
+
+<n-modal
+   v-model:show = "showCampaignBackgroundModal"
+   :mask-closeable = "false"
+   preset = "card"
+   :style = "bodyStyle"
+   size = "large"
+   >   
+  <n-card>
+    <background-form/>
+  </n-card>
+</n-modal>
+
+
+<n-modal
+   v-model:show = "showAdviceModal"
+   :mask-closeable = "false"
+   preset = "card"
+   :style = "bodyStyle"
+   size = "large"
+   >
+  <n-card>
+      <n-spin :show='waitAdvice'>正在分析文案内容...</n-spin>
+      <div v-html="markdownAdviceResponse" />
+      <n-button :show='!waitAdvice' type="info" @click='toCampaignPage'>继续,获取优化后的文案</n-button>
+    </n-card>
+</n-modal>
+
+
+<n-modal
+  v-model:show="showGuideModal"
+    :mask-closable="false"
+    preset = "card"
+    :style="bodyStyle"
+    title="创建一个新的营销文案"
+    size="small"
+    positive-text="创建"
+    negative-text="取消"
+  >
+ <guide-page :modifyMode="modifyMode"/>
+</n-modal>
+
+<n-modal
+  v-model:show="showInputCopyModal"
+    :mask-closable="false"
+    preset = "card"
+    :style="bodyStyle"
+    title="对已有文案进行点评" 
+    size="small"
+    positive-text="创建" 
+    negative-text="取消" 
+  >
+  <input-copy-form @copyOriginalInfo="getAdvices" ref="copyForm" :bordered="false"/>
+  <div class="center_bu">
+    <n-button type="Primary" @click="handleCopyOriginalInfo">获取建议</n-button>
+  </div>
+</n-modal>
+</template>
+
+
+
+<script setup>
+//import CreateCampaignForm from './CreateCampaignForm.vue';
+import GuidePage from './GuidePage.vue';
+//import { isYesterday, addDays } from 'date-fns/esm';
+//import {NForm,NFormItem,NInput} from 'naive-ui';
+import {NModal, NButton, NGrid, NGridItem,NLayout,NSpin,NLayoutContent,NLayoutHeader,NLayoutFooter,NCard} from 'naive-ui';
+import MarkdownIt from 'markdown-it';
+import {computed} from 'vue';
+import {ref} from 'vue';
+import axios from 'axios';
+import {onBeforeMount} from 'vue';
+import InputCopyForm from './InputCopyForm.vue'; 
+import BackgroundForm from './BackgroundForm.vue';
+import {useStore} from 'vuex';
+import {useRouter} from 'vue-router';
+
+const userName = ref('');
+const userInfo = ref({
+    username:'',
+    created_brands:'',
+    created_campaigns:'',
+    created_products:'',
+    });
+
+
+const fetchUserInfo = async() => {
+      const token = localStorage.getItem('token');
+      console.log(token);
+      try {
+        const resp =  await axios.get('/account/auth/',{
+            headers: {
+                'Authorization': `Bearer ${token}` // 设置请求头
+                }});
+        console.log('验证结果:')
+        console.log(resp.data);
+        userInfo.value = resp.data;
+        userName.value = resp.data.username;
+        //has_brands.value = resp.data.created_brands.length;
+        localStorage.setItem('username',resp.data.username);
+          } catch (error) {
+        console.error('Failed to fetch user info:', error);
+      }
+    };
+const bodyStyle = ref({
+  width: "800px"
+});
+
+
+//触发子组件的保存按钮，继而触发emit
+const copyForm = ref(null);
+const handleCopyOriginalInfo = () =>{ 
+    copyForm.value.updateCopyOriginal();
+    };  
+
+
+/*将原文与营销背景一起发送后台寻求建议
+const showCampaignBackgroundModalRef = ref(null);
+const showCampaignBackgroundModal = showCampaignBackgroundModalRef;
+//用prompt存储原文以及营销背景信息
+const prompt = ref({});
+const saveOriginalInfo = (message)=>{
+    showCampaignBackgroundModal.value = true;
+    prompt.value.originall = message;
+    console.log(prompt.value);
+    }
+*/
+
+
+//调用GuidePage创建新文案
+const showGuideModalRef=ref(false);
+const showGuideModal=showGuideModalRef;
+
+//将原文发往后台获得建议
+const adviceResponse = ref(null);
+const showInputCopyModalRef = ref(false);
+const showInputCopyModal = showInputCopyModalRef;
+const showAdviceModalRef = ref(false);
+const waitAdvice = ref(false);
+const showAdviceModal = showAdviceModalRef;
+const promptData = ref({});
+
+//解析Markdown格式
+const md = MarkdownIt();
+const adviceTextRef = ref('');
+const markdownAdviceResponse = computed(()=>{
+    console.log(adviceTextRef.value);
+    return md.render(adviceTextRef.value)});
+const token = localStorage.getItem('token');
+
+const getAdvices = async(message) => {
+    adviceResponse.value={};
+    promptData.value.original=message;
+    showAdviceModal.value=true;
+    waitAdvice.value = true;
+    promptData.value.type='advice';
+    await axios.post("/api/advice/",promptData.value,{
+            headers:{
+                'Authorization':`Bearer ${token}`,
+                },
+            withCredentials:true,
+                }).then(resp_json => {
+                   // 处理你后端返回的response
+                   console.log(typeof(resp_json.data));
+                   waitAdvice.value=false;
+                   adviceResponse.value=resp_json.data;
+                   adviceTextRef.value = formatAdviceText();
+                 })
+                .catch(err => {
+            console.log('Fail to get info:',err);
+            });
+    
+    };
+
+const formatAdviceText = () =>{
+   
+    const campaignBackground = adviceResponse.value.campaign_background;
+    const persona = adviceResponse.value.persona;
+    const product = adviceResponse.value.product;
+    const senario = adviceResponse.value.senario;
+    
+    return `# 相关营销背景的推测：\n\n## 营销目标\n **目前可能所处营销阶段**：\n${campaignBackground.stage}\n**该阶段主要参考效果目标**：\n ${campaignBackground.objectives}\n\n ## 目标受众画像\n **主要群体** ：\n ${persona.desc}\n\n **心理动机**：\n ${persona.motive}\n\n ## 关于产品与品牌\n **独特卖点(USP)**：\n${product.usp} \n\n**品牌理念**:\n ${product.values} \n\n ## 关于营销场景与情绪\n **文案体现出的主要情绪**：\n ${senario.emotions}\n **适合使用的地方**：\n${senario.place} \n\n ##一些供参考的优化建议：`
+    } 
+
+//跳转CampaignPage继续获取优化后的文案
+const store = useStore();
+const router = useRouter();
+
+const toCampaignPage = ()=>{
+    //添加原文
+    adviceResponse.value.original = promptData.value.original;
+    console.log(typeof(adviceResponse.value));
+    store.commit('set_temp_campaign_data',adviceResponse.value);
+    console.log(store.getters.temp_campaign_data);
+    router.push('/Campaign');
+    }
+
+//获取任务建议
+/*const taskInfo = ref('');
+const taskResponse = ref('');
+const sendTask = async() => {
+    await axios.post("/api/advice/",taskInfo.value,{
+            headers:{
+                'Authorization':`Bearer ${token}`,
+                },
+            withCredentials:true,
+                }).then(resp => {
+                   // 处理你后端返回的response
+                   console.log(typeof(resp.data));
+                   taskResponse.value = resp.data;
+                 })
+                .catch(err => {
+            console.log('Fail to get info:',err);
+            });
+   
+    }
+
+const markdownTaskResponse = computed(()=>{
+    return md.render(taskResponse.value)});
+/*
+
+/*
+const formatCampaignInfo = ()=>{
+    const text = adviceResponse.value;
+    const sectionsPattern = /### (\d+\. [A-Za-z_]+): ([\s\S]*?)(?=### \d+\. [A-Za-z_]+:|$)/g;
+    let jsonResult = {};
+    let match;
+    while ((match = sectionsPattern.exec(text)) !== null) {
+      const key = match[1].split('. ')[1]; // 分割并获取真正的键名，例如 "Stage"
+      let content = match[2].trim(); // 移除前后的多余空格
+    if (key === "emotions") {
+        content = content.split('\n').map(item => item.trim()).filter(item => item);
+    }
+    jsonResult[key] = content;
+    }
+    console.log(jsonResult);
+    }; 
+
+*/
+
+
+
+onBeforeMount(()=>{
+    fetchUserInfo();})
+
+</script>
+
+<style>
+.green{
+   height: 108px;
+  background-color: rgba(0, 128, 0, 0.24);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+    }
+.light-green {
+  height: 108px;
+  background-color: rgba(0, 128, 0, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.center_bu{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    }
+</style>

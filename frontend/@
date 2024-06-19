@@ -1,0 +1,132 @@
+<template>
+<div class="page-container" style="height: 100vh; overflow: hidden;text-align:left">
+  <div class="flex-container" style="display: flex; justify-content: space-between;height:100%">
+    <n-card style="width: 45%;height:100%;overflow-y:auto">
+      <n-form @submit.prevent="submitForm"> 
+        <n-button @click="activate('left')">
+        左
+        </n-button>
+        
+        <n-card :bordered="false">
+        <n-form-item label="上下文">
+          <n-h5 prefix="bar">上下文</n-h5>
+          <n-input v-model:value="formData.context" round clearable size="large" type="textarea" placeholder="上下文"></n-input>
+        </n-form-item>
+        </n-card>
+         <n-card :bordered="false">
+        <n-form-item label="写作目标">
+          <n-h5 prefix="bar">写作目标</n-h5>
+          <n-input v-model:value="formData.goal"  round clearable size="large" type="textarea" placeholder="写作目标"></n-input>
+        </n-form-item>
+        </n-card>
+         <n-card :bordered="false">
+        <n-form-item label="行文风格">
+         <n-h5 prefix="bar">行文风</n-h5>
+         <n-input v-model:value="formData.style"  round clearable size="large" type="textarea" placeholder="行文风格"></n-input>
+        </n-form-item>
+        </n-card>
+         <n-card :bordered="false">
+        <n-form-item label="情绪语气">
+          <n-h5 prefix="bar">情绪语气</n-h5>
+          <n-input v-model:value="formData.tone"  round clearable size="large" type="textarea" placeholder="情绪语气"></n-input>
+        </n-form-item>
+        </n-card>
+        <n-card :bordered="false">
+        <n-form-item label="受众画像">
+          <n-h5 prefix="bar">受众画像</n-h5>
+          <n-input v-model:value="formData.audience"  round clearable size="large" type="textarea" placeholder="受众画像"></n-input>
+        </n-form-item>
+        </n-card>
+        <n-card :bordered="false">
+        <n-form-item label="输出要求">
+          <n-h5 prefix="bar">输出要求</n-h5>
+          <n-input v-model:value="formData.output"  round clearable size="large" type="textarea" placeholder="输出要求"></n-input>
+        </n-form-item>
+        </n-card>
+        <n-button type="primary" @click="submitForm">提交</n-button>
+      </n-form>
+    </n-card>
+    <n-card style="width: 55%;height:100%;overflow-y:auto">
+      {{message}}
+    </n-card> 
+  </div>
+</div>
+</template>
+
+<script setup lang="ts">
+import { NButton , NInput, NCard, NH5,DrawerPlacement} from 'naive-ui'
+import { defineComponent, ref } from 'vue';
+
+export default ({
+  setup () {
+    const active = ref(false)
+    const placement = ref<DrawerPlacement>('right')
+    const activate = (place: DrawerPlacement) => {
+      active.value = true
+      placement.value = place
+    }
+    return {
+      active,
+      placement,
+      activate
+    }
+  }
+})
+
+</script>
+
+<script lang="ts">
+  import axios from 'axios';
+
+  export default { 
+      data() {
+          return {
+              message: '', // 定义message变量，用于存储api返回的数据
+              formData:{
+              context:'',
+              goal:'',
+              style:'',
+              tone:'',
+              audience:'',
+              output:''
+          }
+      }
+    },
+
+      methods: {
+        handleClick() {
+          axios.get('http://localhost:8005/api/response/?format=json')  //你的Django后端API的endpoint
+            .then(response => {
+               //在这里处理你的数据。response.data将包含你的数据。
+               console.log(response.data);
+               this.message = response.data.message;
+            })
+            .catch(error => {
+               //在这里处理错误
+               console.error(error);
+            });
+          },
+
+        submitForm() {
+          axios.post('http://localhost:8005/api/response/', this.formData)
+            .then(response => {
+              // 处理你后端返回的response
+              console.log(response);
+              this.message = response.data.message;
+          })
+            .catch(err => {
+              console.log(err);
+          });
+        },
+      },
+
+      mounted() {
+  }
+
+}
+</script>
+n-form-item {
+    padding:20px;
+    }
+<style>
+</style>

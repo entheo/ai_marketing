@@ -1,0 +1,54 @@
+<template>
+<n-form>
+    <n-form-item>
+        <n-h5>所属品牌的名字</n-h5>
+        <n-input clearable v-model:value="productInfo.brandName"/>
+    </n-form-item>
+
+     <n-form-item">
+         <n-h5>品牌理念</n-h5>
+         <n-input v-model:value='productInfo.brandValues' clearabletype="textarea"/>
+     </n-form-item>
+    
+    <n-form-item>
+        <n-h5>产品或服务的名字</n-h5>
+        <n-input clearable v-model:value="productInfo.name"/>
+    </n-form-item>
+
+    <n-form-item>
+         <n-h5>独特卖点</n-h5>
+         <n-input v-model:value='productInfo.usp' clearable type="textarea"/>
+    </n-form-item>
+    
+    <n-button @click="createProduct">保存</n-button>
+</n-form>
+</template>
+
+<script setup>
+import {ref} from 'vue';
+import {  NButton, NForm, NInput, NH5} from 'naive-ui';
+const productInfo = ref({
+    brandName : '',
+    brandValues:'',
+    name : '',
+    usp : '',
+    })
+const createProduct = () =>{
+      console.log(productInfo.value);
+      try{
+          /*
+          const resp =  await axios.get('http://localhost:8005/account/auth/',{
+            headers: {
+                'Authorization': `Bearer ${token}` // 设置请求头
+                }});
+         */ }catch (error) {
+        console.error('Failed to fetch user info:', error);
+        }
+      }
+
+</script>
+<script>
+  export default{
+      name:'CreateProductForm'
+      };
+</script>

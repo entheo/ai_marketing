@@ -1,0 +1,183 @@
+<template>
+<n-layout position="absolute">
+  <n-layout-header style="height: 64px; padding: 24px" bordered>
+  步步为营
+  </n-layout-header>
+
+<n-layout-content>
+
+  <input-copy-form @adviceMessage="getAdvices" ref="copyForm" />
+  <n-button @click="handleAdvices" type="info">提交</n-button>
+
+<n-grid  cols="2 s:1 m:1 l:6 xl:6 2xl:6" responsive="screen">
+  
+  <n-grid-item span="1 m:1 l:1">
+    <n-card :bordered="false">
+
+      <n-button type="primary" @click="showModal=true">编写新的营销文案</n-button>
+    </n-card>
+  </n-grid-item>
+  
+  <n-grid-item span="1 m:1 l:1">
+    <n-card :bordered="false">
+      <n-button type="primary" @click="showModifyModal">优化已有文案</n-button>
+    </n-card>
+  </n-grid-item>
+
+  <n-grid-item span="1 m:1 l:1">
+    <n-card v-for="cam in userInfo.created_campaigns" :key="cam.id || cam" >
+      {{cam}}
+    </n-card>
+  </n-grid-item>
+
+  <!--
+  <n-grid-item>
+    <n-card :bordered="false" v-if="userInfo.created_campaigns">
+        <n-card v-for="cam in userInfo.created_campaigns" :key="cam.id || cam" >
+         dddd {{cam}}
+        </n-card>
+    </n-card>
+  </n-grid-item>
+  -->
+
+<!--
+  <n-grid-item span="1 m:1 l:4" >
+    <n-card :bordered="false" >
+        <n-calendar v-model:value="value" #="{ year, month, date }" :is-date-disabled="isDateDisabled" @update:value="handleUpdateValue">
+        {{ year }}-{{ month }}-{{ date }}
+        </n-calendar>
+    </n-card>
+  </n-grid-item>
+-->
+
+</n-grid>
+</n-layout-content>
+
+<n-layout-footer>
+footer
+</n-layout-footer>
+
+</n-layout>
+
+
+<n-modal
+  v-model:show="showModal"
+    :mask-closable="false"
+    preset = "card"
+    :style="bodyStyle"
+    title="创建一个新的营销活动"
+    size="small"
+    positive-text="创建"
+    negative-text="取消"
+  >
+ <guide-page :modifyMode="modifyMode"/>
+</n-modal>
+</template>
+
+<script setup>
+//import CreateCampaignForm from './CreateCampaignForm.vue';
+import GuidePage from './GuidePage.vue'
+//import { isYesterday, addDays } from 'date-fns/esm';
+import {NModal, NButton, NGrid, NGridItem,NLayout,NLayoutContent,NLayoutHeader,NLayoutFooter,NCard} from 'naive-ui';
+import {ref} from 'vue';
+import axios from 'axios';
+import {onBeforeMount} from 'vue';
+import InputCopyForm from './InputCopyForm.vue'; 
+
+const showModalRef = ref(false);
+
+const userName = ref('');
+const userInfo = ref({
+    username:'',
+    created_brands:'',
+    created_campaigns:'',
+    created_products:'',
+    });
+
+//日历变量
+//const value = ref(addDays(Date.now(), 1).valueOf());
+//const handleUpdateValue = (_, { year, month, date }) => {  
+//  console.log(`${year}-${month}-${date}`);
+//};
+//const isDateDisabled = (timestamp) => {
+//    if (isYesterday(timestamp)) {
+//          return true
+//        }   
+//    return false
+//    };
+
+const showModal = showModalRef;
+const modifyMode = ref(null);
+
+const showModifyModal = () =>{
+     modifyMode.value=true;
+     console.log(modifyMode);
+     showModal.value=true;
+     console.log(showModal);
+    };
+
+const fetchUserInfo = async() => {
+      const token = localStorage.getItem('token');
+      console.log(token);
+      try {
+        const resp =  await axios.get('/account/auth/',{
+            headers: {
+                'Authorization': `Bearer ${token}` // 设置请求头
+                }});
+        console.log('验证结果:')
+        console.log(resp.data);
+        userInfo.value = resp.data;
+        userName.value = resp.data.username;
+        //has_brands.value = resp.data.created_brands.length;
+        localStorage.setItem('username',resp.data.username);
+          } catch (error) {
+        console.error('Failed to fetch user info:', error);
+      }
+    };
+const bodyStyle = ref({
+  width: "800px"
+});
+const copyData = ref(null);
+const getAdvices = (message) => {
+    copyData.value= message;;
+    console.log(message);
+    };
+
+const copyForm = ref(null);
+const handleAdvices = () => {
+    copyForm.value.getAdvices();
+    const token = localStorage.getItem('token');
+    try{
+        const resp = axiso.post("/api/advice/",copyData,{
+            headers:{
+                'Authorization':`Bearer ${token}`,
+                },
+            withCredentials:true,
+                });
+        console.log(resp);
+        }catch(err){
+            console.err('Fail to get info:',err);
+            }
+    };
+
+onBeforeMount(()=>{
+    fetchUserInfo();})
+
+</script>
+
+<style>
+.green{
+   height: 108px;
+  background-color: rgba(0, 128, 0, 0.24);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+    }
+.light-green {
+  height: 108px;
+  background-color: rgba(0, 128, 0, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+</style>
