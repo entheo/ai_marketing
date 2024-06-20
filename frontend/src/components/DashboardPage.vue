@@ -41,7 +41,7 @@
                             <n-icon >
                             <trending-up-outline/>
                             </n-icon>
-                                <span class="btnName"> 优化现有文案</span></n-button>
+                                <span class="btnName"> 分析已有文案</span></n-button>
                         <n-button quaternary class="show-contact"
                           :class="{'icon-only':collapsed}"
                           type = 'info'
@@ -297,11 +297,12 @@ import MarkdownIt from 'markdown-it';
 import {computed} from 'vue';
 import {ref} from 'vue';
 import axios from 'axios';
-import {onBeforeMount} from 'vue';
+import {onBeforeMount,onMounted,onBeforeUnmount} from 'vue';
 import InputCopyForm from './InputCopyForm.vue'; 
 import {useStore} from 'vuex';
 import {useRouter} from 'vue-router';
 import FamousQuotes from './FamousQuotes.vue';
+import Clipboard from 'clipboard';
 
 //导入图标
 import {CaretForwardCircleOutline,ChatbubblesOutline,TrendingUpOutline,Cafe,CheckmarkDone,CreateOutline,HappyOutline} from '@vicons/ionicons5';
@@ -542,18 +543,60 @@ ${advices}
 
 //复制分析建议
 const textToCopy=ref(null);
+
+/* navigator.clipboard方法，因无https暂停用
 const copyText = async()=>{
+    console.log(textToCopy)        
     if(!textToCopy.value) 
         return;
     try{
+        if(navigator.clipboard && navigator.clipboard.writeText){
+        console.log('Attempting to write text to clipboard');
         await navigator.clipboard.writeText(textToCopy.value.textContent);
         notification.success({
             content:"已成功复制到粘贴板",
             duration:2500})
+        }else{
+            console.error('Clipboard API not supported or writeText not available');
+            }
 
         }catch(err){
-        console.log(err)}
-    };
+        console.log('Error during clipboard operation:',err)}
+    
+    };*/
+
+let clipboard=null;
+const initClipboard = () => {
+  if (clipboard) {
+    clipboard.destroy();
+  }};
+
+clipboard = new Clipboard('.copy-text button', {
+    text: () => textToCopy.value.innerText || textToCopy.value.textContent
+  });
+
+clipboard.on('success', (e) => {
+    notification.success({
+      content: "已成功复制到粘贴板",
+      duration: 2500
+    });
+    console.log('文本已成功复制到剪贴板');
+    e.clearSelection();
+  });
+
+  
+clipboard.on('error', (e) => {
+    console.error('复制到剪贴板操作失败:', e);
+  });
+
+const copyText = () => {
+  if (!clipboard) { 
+    initClipboard();
+  }
+  // 触发复制操作
+  clipboard.onClick({ currentTarget: document.querySelector('.copy-text button') });
+};
+
 const notification=useNotification();
 
 //跳转CampaignPage继续获取优化后的文案
@@ -665,9 +708,19 @@ const submitSettingData = async()=>{
            }catch (error) {
         console.error('Failed to get info:', error);
         }
-        }   
+        };   
 
 
+onBeforeUnmount(() => {
+   if (clipboard) {
+     clipboard.destroy();
+   }
+});
+
+onMounted(() => {
+  // Ensure Clipboard is initialized on mount to avoid multiple bindings
+  initClipboard();
+});
 
 onBeforeMount(()=>{
     fetchUserInfo();})
