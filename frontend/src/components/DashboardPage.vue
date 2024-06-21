@@ -41,7 +41,7 @@
                             <n-icon >
                             <trending-up-outline/>
                             </n-icon>
-                                <span class="btnName"> 分析已有文案</span></n-button>
+                                <span class="btnName"> 分析现有文案</span></n-button>
                         <n-button quaternary class="show-contact"
                           :class="{'icon-only':collapsed}"
                           type = 'info'
