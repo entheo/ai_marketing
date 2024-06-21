@@ -12,7 +12,7 @@
         </div>
         
         <div class='slogan'>
-          <p>一款仅为追求营销效果的你提供脚手架的AI助理</p>
+          <p>一个帮你追求更高营销效果的AI脚手架</p>
         </div>
       </n-grid-item>
     
@@ -24,9 +24,9 @@
       </n-grid-item>
   </n-grid>    
   </n-layout-content>
-  <n-layout-footer position="absolute">
+  <!--n-layout-footer position="absolute">
    footer
-  </n-layout-footer>
+  </n-layout-footer-->
   </n-layout>
 </template>
 
