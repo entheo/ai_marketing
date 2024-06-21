@@ -13,6 +13,9 @@
         
         <div class='slogan'>
           <p>一个帮你追求更高营销效果的AI脚手架</p>
+          <a href="https://docs.qq.com/form/page/DZnZ4dWpyck56Y3VT“" target="_blank">
+          申请邀请码
+          </a>
         </div>
       </n-grid-item>
     
