@@ -718,6 +718,7 @@ onBeforeUnmount(() => {
 });
 
 onMounted(() => {
+  document.tilte="步步为营"
   // Ensure Clipboard is initialized on mount to avoid multiple bindings
   initClipboard();
 });

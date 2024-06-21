@@ -32,11 +32,16 @@
 
 <script setup>
 //import axios from 'axios';
-//import { ref } from 'vue';
+import { onMounted } from 'vue';
 import { useStore } from 'vuex';
 //import { useRouter } from 'vue-router';
 import LoginRegister from './LoginRegister.vue';
 import {NLayout,NLayoutHeader,NGrid,NGridItem,NCard} from 'naive-ui';
+
+
+onMounted(()=>{
+    document.title="步步为营"
+    })
 
 // 用于获取csrftoken的函数
 /*
