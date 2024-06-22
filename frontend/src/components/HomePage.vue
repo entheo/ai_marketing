@@ -13,9 +13,8 @@
         
         <div class='slogan'>
           <p>一个帮你追求更高营销效果的AI脚手架</p>
-          <a href="https://docs.qq.com/form/page/DZnZ4dWpyck56Y3VT“" target="_blank">
-          申请邀请码
-          </a>
+          <n-button quaternary type='info' @click='showInvitationForm=true'>申请邀请码</n-button>
+          
         </div>
       </n-grid-item>
     
@@ -29,25 +28,34 @@
       </n-grid-item>
   </n-grid>    
   </n-layout-content>
-  <!--n-layout-footer position="absolute">
-   footer
-  </n-layout-footer-->
   </n-layout>
+
+  <!--申请邀请码模态-->
+  <n-modal v-model:show='showInvitationForm'>
+    <n-card class='invitation'>
+    <template #cover>
+      <img src="./images/invitation_form.png"/>
+    </template>
+    请扫码后填写申请表格
+    </n-card>
+  </n-modal>
 </template>
 
 <script setup>
 //import axios from 'axios';
-import { onMounted } from 'vue';
+import { ref,onMounted } from 'vue';
 import { useStore } from 'vuex';
 //import { useRouter } from 'vue-router';
 import LoginRegister from './LoginRegister.vue';
-import {NLayout,NLayoutHeader,NGrid,NGridItem,NCard} from 'naive-ui';
+import {NLayout,NModal,NButton,NLayoutHeader,NGrid,NGridItem,NCard} from 'naive-ui';
 
 
 onMounted(()=>{
     document.title="步步为营"
     })
 // 用于获取csrftoken的函数
+
+const showInvitationForm=ref(false);
 /*
 function getCsrfToken() {
   return document.cookie.split('; ')
@@ -187,4 +195,7 @@ export default {
 .card-tabs .n-tabs-nav--bar-type {
   padding-left: 4px;
 }
+.n-card.n-modal.invitation{
+    max-width:300px;
+    text-align:center}
 </style>
