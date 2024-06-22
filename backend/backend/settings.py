@@ -25,7 +25,10 @@ SECRET_KEY = 'django-insecure-!9w)33lyte!=0+sn&!yan#egr_sy!nfkh++*13n)n&bltv2ho&
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+ "www.wetouch.cn",
+ "stepstowin.wetouch.cn"
+]
 
 
 # Application definition
@@ -56,11 +59,11 @@ MIDDLEWARE = [
 ]
 
 CORS_ORIGIN_WHITELIST = [
-    "http://127.0.0.1:8089",
+    "http://140.143.45.244:8081",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = ['http://127.0.0.1:8083']
+CSRF_TRUSTED_ORIGINS = ['http://127.0.0.1:8081']
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
@@ -100,7 +103,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME':'aimarketing',
         'USER': 'root',
-        'PASSWORD': '25479wangjue',
+        'PASSWORD': 'wangjue0508A!',
         'HOST': '127.0.0.1',  # 如：'127.0.0.1' 或者留空
         'PORT': '3306',  # 例如 '3306'
     }
