@@ -21,9 +21,11 @@
     
      <!--登录&注册组件-->
      <n-grid-item :offset="0" span=2>
+       <n-spin :show='wait'>
         <n-card>
-        <login-register/>
+         <login-register/>
         </n-card>
+       </n-spin>
       </n-grid-item>
   </n-grid>    
   </n-layout-content>
@@ -45,7 +47,6 @@ import {NLayout,NLayoutHeader,NGrid,NGridItem,NCard} from 'naive-ui';
 onMounted(()=>{
     document.title="步步为营"
     })
-
 // 用于获取csrftoken的函数
 /*
 function getCsrfToken() {

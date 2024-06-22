@@ -64,6 +64,7 @@ import RegisterForm from './RegisterForm.vue';
 import LoginForm from './LoginForm.vue';
 
 
+
 //通用变量
 const authStore = useStore();
 const router = useRouter();

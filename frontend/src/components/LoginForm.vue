@@ -1,4 +1,8 @@
 <template>
+<n-spin :show='waitLogin'>
+  <template #description>
+    <n-card :bordered='false'>稍等,正在完成登录...</n-card>
+  </template>
 <n-form>
     <n-form-item-row label="用户名">
         <n-input v-model:value="loginUsername" placeholder=""/>
@@ -10,10 +14,11 @@
         <n-button @click="login" type="primary" block secondary strong>
           登录
     </n-button>
+ </n-spin>
 </template>
 
 <script setup>
-import {useNotification,NButton,NInput,NForm,NFormItemRow} from 'naive-ui';
+import {NSpin,NCard,useNotification,NButton,NInput,NForm,NFormItemRow} from 'naive-ui';
 import {ref,defineExpose} from 'vue';
 import {useStore} from 'vuex';
 import {useRouter} from 'vue-router';
@@ -28,11 +33,14 @@ const router = useRouter();
 const loginUsername = ref('');
 const loginPassword = ref('');
 const keepLoggedInForDays = ref('7'); // 默认设置为7天，通过select控件让用户可选择
-const notification=useNotification()
+const notification=useNotification();
+const waitLogin=ref(false);
 const login = async () => {
     try{
+        waitLogin.value=true;
         const response = await axios.post('/account/login/', 
         {   
+          timeout:50000,
           username: loginUsername.value,
           password: loginPassword.value,
           keep_logged_in_for_days: keepLoggedInForDays.value
@@ -50,6 +58,7 @@ const login = async () => {
         localStorage.setItem('token', token);
         await authStore.commit('auth_success', { token, user });
         console.log("登录成功：",loginUsername.value); 
+        waitLogin.value=false;
         await router.push('/dashboard');
         
         }catch(err){
@@ -60,6 +69,7 @@ const login = async () => {
                     })
             }
             console.log("登录失败：",err)
+            waitLogin.value=false;
         }
     }
 

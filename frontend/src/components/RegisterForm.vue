@@ -1,25 +1,13 @@
 <template>
+  <n-spin :show='waitRegister'>
+    <template #description>
+      <n-card :bordered='false'>稍等，正在完成注册...</n-card>
+    </template>
     <n-form ref="formRef" :rules="rules"  :model="modelRef">
         <n-form-item-row path="userName" label="用户名">
             <n-input v-model:value="modelRef.userName" minlength="5" maxlength="10" placeholder="5~10位字符" />
         </n-form-item-row>
         
-        <!--
-        <n-form-item-row label="密码" :feedback="validateInfos.password>
-            <n-input v-model:value="registerPassword" maxlength="15" placeholder="最多15位字符"/>
-        </n-form-item-row>
-          
-        <n-form-item-row label="重复密码">
-            //<n-input passively-activated @input="checkRePassword" v-model:value="rePassword" placeholder=""/>
-            <n-input
-                v-model:value="rePassword"
-                :disabled="!model.password"
-                type="password"
-                @keydown.enter.prevent
-                placeholder=""/>
-        </n-form-item-row>
-         -->
-         
          
          <!--验证模块-->
 
@@ -61,10 +49,11 @@
       type="primary" block secondary strong>
           注册
     </n-button>
-
+  </n-spin>
 </template>
+
 <script setup>
-import {useNotification,NFormItem,NFormItemRow,NForm,NButton,NInput} from 'naive-ui';
+import {NSpin,NCard,useNotification,NFormItem,NFormItemRow,NForm,NButton,NInput} from 'naive-ui';
 import {ref,defineExpose} from 'vue';
 import {useRouter} from 'vue-router';
 import axios from 'axios';
@@ -77,12 +66,15 @@ const router=useRouter();
 const registeredNextPath = ref('/dashboard');
 
 //注册方法
-const notification =useNotification()
+const notification =useNotification();
+const waitRegister = ref(false);
 const register=async()=>{
     if(formValidated.value===true){
     try{
+      waitRegister.value=true;
       const response = await axios.post('/account/register/',
       {
+        timeout:50000,
         username:modelRef.value.userName,
         password:modelRef.value.password,
         invitation_code:modelRef.value.invitationCode,
@@ -93,6 +85,7 @@ const register=async()=>{
                 }
       });
       console.log(response);
+      waitRegister.value=false;
       await router.push(registeredNextPath.value);
     }
     catch(err){
@@ -104,6 +97,7 @@ const register=async()=>{
               })}
 
         console.log('注册失败:',err)}
+        waitRegister.value=false;
     
  }}
 
