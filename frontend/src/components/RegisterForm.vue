@@ -104,29 +104,11 @@ const toRegister=async()=>{
                 }
         });
       console.log(response);
-<<<<<<< HEAD
-      waitRegister.value=false;
-      console.log(router);
-<<<<<<< HEAD
-      await router.push('/dashboard').then(()=>{
-          console.log('跳转成功');  
-      }).catch((err)=>{
-          console.log('跳转失败',err);  
-      });
-=======
-      await router.push(registeredNextPath.value);
->>>>>>> efbcd573d396de71828a5759dcdc00b1464cdbee
-    }
-    catch(err){
-        console.log(err.response);
-        if(err.response.status==400 && err.response.data.invitation_code){
-=======
       console.log('注册成功');
       }catch(err){
          console.log(err) ;
          waitRegister.value=false;
          if(err.response.status==400 && err.response.data.invitation_code){
->>>>>>> dev
           notification.error({
               content:err.response.data.invitation_code[0],
               duration:2800,
