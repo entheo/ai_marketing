@@ -60,17 +60,9 @@ MIDDLEWARE = [
 ]
 
 CORS_ORIGIN_WHITELIST = [
-<<<<<<< HEAD
     "http://stepstowin.wetouch.cn",
     "http://stepstowin.wetouch.cn:8008",
     "http://140.143.45.244:8085"
-=======
-<<<<<<< HEAD
-    "http://127.0.0.1:8095",
-=======
-    "http://127.0.0.1:8099",
->>>>>>> dev
->>>>>>> efbcd573d396de71828a5759dcdc00b1464cdbee
 ]
 
 CORS_ALLOW_CREDENTIALS = True
