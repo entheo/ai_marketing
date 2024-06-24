@@ -10,6 +10,10 @@ frontend/node_modules/.cache/eslint/
 frontend/src/main.js
 # 忽略特定的 lock 文件
 frontend/node_modules/.package-lock.json
+<<<<<<< HEAD
+=======
+
+>>>>>>> efbcd573d396de71828a5759dcdc00b1464cdbee
 #忽略后端settings.py
 backend/backend/settings.py
 backend/backend/__pycache__/settings.cpython-37.pyc
