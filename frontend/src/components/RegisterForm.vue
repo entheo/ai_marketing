@@ -44,7 +44,7 @@
         </n-form-item-row>
         
     </n-form>
-    <n-button @click="formValidateCheck" 
+    <n-button @click="register" 
       :disabled="modelRef.userName === null"
       type="primary" block secondary strong>
           注册
@@ -55,6 +55,7 @@
 <script setup>
 import {NSpin,NCard,useNotification,NFormItem,NFormItemRow,NForm,NButton,NInput} from 'naive-ui';
 import {ref,defineExpose} from 'vue';
+import {useStore} from 'vuex';
 import {useRouter} from 'vue-router';
 import axios from 'axios';
 
@@ -63,28 +64,47 @@ import axios from 'axios';
 
 
 const router=useRouter();
-const registeredNextPath = ref('/dashboard');
 
 //注册方法
 const notification =useNotification();
 const waitRegister = ref(false);
-const register=async()=>{
-    if(formValidated.value===true){
+
+//表单验证,通过后进行注册
+const formValidated=ref(false);
+const formValidateCheck = async(e)=>{
+    return new Promise((resolve,reject)=>{
+      e.preventDefault();
+      formRef.value?.validate((errors)=>{
+        if(!errors){
+          console.log('验证成功')
+          formValidated.value=true;
+          resolve();
+            }
+        else{
+          console.log('验证失败');
+          reject('表单验证失败')}
+          })
+    })};
+
+//注册
+const toRegister=async()=>{
+    console.log('开始注册');
     try{
       waitRegister.value=true;
       const response = await axios.post('/account/register/',
-      {
-        timeout:50000,
-        username:modelRef.value.userName,
-        password:modelRef.value.password,
-        invitation_code:modelRef.value.invitationCode,
+        {
+          timeout:50000,
+          username:modelRef.value.userName,
+          password:modelRef.value.password,
+          invitation_code:modelRef.value.invitationCode,
         },
-      {
-            headers:{
+        {
+          headers:{
                 //'X-CSRFToken': csrfToken.value,
                 }
-      });
+        });
       console.log(response);
+<<<<<<< HEAD
       waitRegister.value=false;
       console.log(router);
       await router.push(registeredNextPath.value);
@@ -92,15 +112,40 @@ const register=async()=>{
     catch(err){
         console.log(err.response);
         if(err.response.status==400 && err.response.data.invitation_code){
+=======
+      console.log('注册成功');
+      }catch(err){
+         console.log(err) ;
+         waitRegister.value=false;
+         if(err.response.status==400 && err.response.data.invitation_code){
+>>>>>>> dev
           notification.error({
               content:err.response.data.invitation_code[0],
               duration:2800,
               })}
-
-        console.log('注册失败:',err)}
-        waitRegister.value=false;
+         else if (err.response.status==400 && err.response.data.username[0]=='users with this username already exists.'){
+             console.log('用户名重复');
+             notification.error({
+                 content:'用户名已存在，请重新注册',
+                 duration:2800})
+             }
+     }}
     
- }}
+const register=async(e)=>{
+    waitRegister.value=true;
+    try{
+      await formValidateCheck(e);
+      if(formValidated.value){
+        await toRegister();
+        loginUsername.value = modelRef.value.userName;
+        loginPassword.value = modelRef.value.password;
+        login();
+        }
+    }catch(err){
+        console.log(err);
+        waitRegister.value=false
+           }    
+   };
 
 //密码验证
 
@@ -115,20 +160,6 @@ const modelRef = ref({
   invitationCode:null,
 });
 
-//表单验证,通过后进行注册
-const formValidated=ref(false);
-const formValidateCheck = async(e)=>{
-    e.preventDefault();
-    formRef.value?.validate((errors)=>{
-        if(!errors){
-            console.log('验证成功');
-            formValidated.value=true;
-            register();
-            }else{
-                console.log('验证失败');
-                }
-            });
-    };
 
 //表单验证规则
 const rules = {
@@ -191,7 +222,38 @@ const handlePasswordInput=()=> {
     rPasswordFormItemRef.value?.validate({ trigger: "password-input" });
 }}
 
+//登录操作
+const loginUsername=ref(null);
+const loginPassword=ref(null);
+const authStore = useStore();
+const login = async () => {
+    try{
+        const response = await axios.post('/account/login/',
+        {
+          timeout:50000,
+          username: loginUsername.value,
+          password: loginPassword.value,
+          keep_logged_in_for_days: '7',
+        },
+        {
+          withCredentials: true,
+          headers: {
+            //先注销'X-CSRFToken': csrfToken.value,
+          }
+        });
+        const token = response.data.token.access;
+        const user = response.data.username;
+        //const csrf_token = response.data.csrf_token;
+        //console.log('csrf_token:',csrf_token);
+        localStorage.setItem('token', token);
+        await authStore.commit('auth_success', { token, user });
+        console.log("登录成功：",loginUsername.value);
+        await router.push('/dashboard');
 
+        }catch(err){
+            console.log("登录失败：",err)
+        }
+    }
 defineExpose({register});
 </script>
 

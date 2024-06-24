@@ -56,7 +56,11 @@ MIDDLEWARE = [
 ]
 
 CORS_ORIGIN_WHITELIST = [
+<<<<<<< HEAD
     "http://127.0.0.1:8095",
+=======
+    "http://127.0.0.1:8099",
+>>>>>>> dev
 ]
 
 CORS_ALLOW_CREDENTIALS = True
