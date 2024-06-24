@@ -86,6 +86,7 @@ const register=async()=>{
       });
       console.log(response);
       waitRegister.value=false;
+      console.log(router);
       await router.push(registeredNextPath.value);
     }
     catch(err){
