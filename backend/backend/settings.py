@@ -27,7 +27,8 @@ DEBUG = True
 
 ALLOWED_HOSTS = [
  "www.wetouch.cn",
- "stepstowin.wetouch.cn"
+ "stepstowin.wetouch.cn",
+ "140.143.45.244"
 ]
 
 
@@ -59,7 +60,7 @@ MIDDLEWARE = [
 ]
 
 CORS_ORIGIN_WHITELIST = [
-    "http://140.143.45.244:8081",
+    "http://stepstowin.wetouch.cn:8008",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
