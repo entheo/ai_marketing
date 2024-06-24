@@ -63,7 +63,6 @@ import axios from 'axios';
 
 
 const router=useRouter();
-const registeredNextPath = ref('/dashboard');
 
 //注册方法
 const notification =useNotification();
@@ -86,7 +85,12 @@ const register=async()=>{
       });
       console.log(response);
       waitRegister.value=false;
-      await router.push(registeredNextPath.value);
+      console.log(router);
+      await router.push('/dashboard').then(()=>{
+          console.log('跳转成功');  
+      }).catch((err)=>{
+          console.log('跳转失败',err);  
+      });
     }
     catch(err){
         console.log(err.response);
