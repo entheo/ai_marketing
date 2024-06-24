@@ -529,7 +529,7 @@ const formatAdviceText = () =>{
   ${campaignBackground.objectives}  \n\n  
 
 ## 关于场景——
-- **与前阶段匹配的场景是哪里**?  \n  
+- **与目前阶段匹配的场景是哪里**?  \n  
   ${senario.places}  \n  
 - **原文传递出了哪些主要情绪**？  \n  
   ${senario.emotionTags}  \n  
