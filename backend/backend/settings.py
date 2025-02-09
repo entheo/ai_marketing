@@ -62,7 +62,7 @@ MIDDLEWARE = [
 CORS_ORIGIN_WHITELIST = [
     "http://stepstowin.wetouch.cn",
     "http://stepstowin.wetouch.cn:8008",
-    "http://140.143.45.244:8085"
+    "http://140.143.45.244:8080"
 ]
 
 CORS_ALLOW_CREDENTIALS = True
