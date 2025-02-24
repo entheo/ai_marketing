@@ -12,9 +12,10 @@ import {NForm, NFormItem, NInput, NButton} from 'naive-ui';
 import {ref,defineEmits,defineExpose} from 'vue';
 
 const copyOriginal = ref(null);
+const infoType = 'article'
 const emit = defineEmits(['copyOriginalInfo'])
 const updateCopyOriginal = ()=>{
-    emit('copyOriginalInfo',copyOriginal.value);
+    emit('copyOriginalInfo',{info:copyOriginal.value,type:infoType});
     }
 
 defineExpose({updateCopyOriginal});
