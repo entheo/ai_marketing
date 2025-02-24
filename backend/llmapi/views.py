@@ -62,6 +62,11 @@ def get_advice(request):
             res = json.loads(json_string)
         except json.JSONDecodeError as e:
             print(f"json解析错误:{e}")
+            fixed_json_string = re.sub(r'(?<!\\)"(.*?)"', r'"\1"', json_string)
+            try:
+                res = json.loads(fixed_json_string)
+            except json.JSONDecodeError as e:
+                return JsonResponse({"error":f"JSON解析错误:{e}"},status=400)
     return JsonResponse(res, safe=False)
 
 def format_data(raw_data):

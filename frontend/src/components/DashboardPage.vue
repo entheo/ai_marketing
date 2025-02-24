@@ -182,7 +182,7 @@
         
             <!----------------获取建议模式----------------->
             <n-layout-content v-show="showAdviceMode">
-              <n-split default-size="45%" direction="horizontal" style="height:100%" :native-scrollbar="false">
+              <n-split default-size="30%" direction="horizontal" style="height:100%" :native-scrollbar="false">
                 <!--原文展示-->
                 <template #1>
                 <n-layout content-style="padding:20px" class="content-panel setting-panel" :native-scrollbar="false">
