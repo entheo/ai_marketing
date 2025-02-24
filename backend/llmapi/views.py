@@ -50,10 +50,18 @@ def get_advice(request):
         data = json.loads(request.body.decode('utf-8'))
         print('RECEIVED DATA:',data)
         response = kimi_bot.response(**data)
+        print('建议的数据类型:',type(response))
         print('已获得建议:',response)
-        res = json.loads(response)
-        print(type(res))
-        print(res)
+        #避免建议中包含markdown语法导致json解析失败
+        if response.startswith("```json") and response.endswith("```"):
+            print("注意：服务器返回Markdown语法，须做对应清理")
+            json_string = response[7:-3].strip()
+        else:
+            json_string = response
+        try:
+            res = json.loads(json_string)
+        except json.JSONDecodeError as e:
+            print(f"json解析错误:{e}")
     return JsonResponse(res, safe=False)
 
 def format_data(raw_data):

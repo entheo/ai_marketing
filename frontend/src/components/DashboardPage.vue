@@ -511,7 +511,9 @@ const formatAdviceText = () =>{
     return `# 分析与建议：
 
 ## 关于产品——
-- **是否有表达与独特卖点(USP)相关信息？**  \n  
+- **主推产品名称？** \n
+  ${product.name}
+- **是否包含独特卖点(USP)的相关信息？**  \n  
   ${product.has_usp} 。${product.usp}  \n
 - **是否有提倡的品牌理念**?  \n  
   ${product.has_brandValues}。${product.brandValues}  \n\n 
