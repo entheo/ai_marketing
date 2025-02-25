@@ -7,10 +7,8 @@ node_modules/
 **/*.swp
 # 忽略 ESLint 缓存文件
 frontend/node_modules/.cache/eslint/
-frontend/src/main.js
 # 忽略特定的 lock 文件
 frontend/node_modules/.package-lock.json
-#忽略后端settings.py
 backend/backend/settings.py
 # 忽略操作系统生成的文件
 .DS_Store
