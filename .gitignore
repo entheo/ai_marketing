@@ -4,7 +4,7 @@ node_modules/
 # 忽略 Python 缓存文件
 __pycache__/
 *.py[cod]
-**/*.pyc
+*.pyc
 # 忽略 ESLint 缓存文件
 frontend/node_modules/.cache/eslint/
 frontend/src/main.js
