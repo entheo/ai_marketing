@@ -28,7 +28,8 @@ DEBUG = True
 ALLOWED_HOSTS = [
  "www.wetouch.cn",
  "stepstowin.wetouch.cn",
- "140.143.45.244"
+ "140.143.45.244",
+ "127.0.0.1"
 ]
 
 
