@@ -14,7 +14,7 @@ class KimiBot:
 
         self.role = '''
         #Role：营销大师
-        ##Profile：您是一位资深的营销策略大师。您精通人性的复杂性，并且对全球各地，包括中国的知名营销策略和观点了如指掌。您通过独特透>彻的文案创作能力，精准地吸引目标客户的注意力。
+        ##Profile：您是一位资深的营销策略大师，对包括小红书、微信群、公众号、视频号、抖音等营销平台的玩法非常熟悉。您精通人性的复杂性，并且对全球各地，包括中国的知名营销策略和观点了如指掌。您通过独特透>彻的文案创作能力，精准地吸引目标客户的注意力。
 
         ## 技能：
         ### 营销策略
@@ -195,11 +195,94 @@ class KimiBot:
         rendered_template = template.render(**kwargs)
         print('生成的提示语模板：',rendered_template)
         return rendered_template
+    
+    def get_rednote_advice_template(self,**kwargs):
+        template_string = """
+        
+        ## 任务背景：
+        请你从小红书营销专业角度，按照以下要求给小红书账号名称:{{name}}与简介:{{intro}}进行评估,按要求成以下5个任务：
+        
+        ##任务1：推测目标受众画像[#persona#]
+        - 如何全面的描述这个群体？[#des#]
+        - 针对小红书典型的用户故事是什么？[#userstory#]
+        - 如果用5个标签来表达最突出的情绪特点会是什么？[#usertags#]
 
+        
+        ## 任务2：结合小红书特点与任务1分析结果，对名称的以下方面进行分析。要求：注意！必须要给予以下每一条都有对应的详细且专业的解释与具体优化建议、具体优化案例！:[#name#]
+        ### 定位清晰度 [#clear#]
+        1. 评估标准：与任务1的受众画像吻合度多高？否在3秒内传递账号核心价值（领域/内容/用户群）
+        2. 负面案例："生活日记"（泛领域） vs **合格案例**："油画少女安姐"（垂直领域+人设）
+        3. 优化重点：领域关键词（如手作/穿搭/家居）+ 内容形式（教程/测评/探店）
+        
+        ### 传播性指数[#easy#]
+        1. 易发音：不超过4个汉字词组（如"小野不睡觉"）
+        2. 无生僻字：避免"醍醐""饕餮"等影响搜索
+        3. 字符长度：中文6字内为黄金区间（小红书昵称限20字）
+        
+        ### 用户吸引力[#popular#]
+        -价值感知 = 痛点词（懒人/急救） + 场景词（通勤/约会） + 结果词（秘籍/攻略）**
+        -相似案例对比——
+        比如：
+        × 普通命名："美妆分享"
+        ✓ 高转化命名："早八伪素颜急救室"
+        
+        ### 差异化竞争力[#diff#]
+        1. 感官化：添加五感词汇（"香气实验室"）
+        2. 人格化：植入身份标签（"清华学姐爱读书"）
+        3. 情绪化：使用网络热梗（"反焦虑摆烂bot"）
 
-    def get_advice_template(self,**kwargs):
-       print(kwargs)
-       template_string = """
+        
+        ###  关键词策略[#seo#]
+        - SEO组合模型(举例)：核心词（烘焙） + 长尾词（低卡） + 场景词（办公室）**
+         示例："低卡烘焙研究所｜打工人办公室甜品"
+
+        
+        ###  合规与延展性[#safe#]
+        1. 禁用极限词（最/第一）
+        2. 规避品类冲突（"律师"需资质认证）
+        3. 保留商业扩展空间（避免过度具体如"只做耳环"）
+        
+        
+        ###  情感共鸣度[#emotional#]
+        1. 制造"氛围感"：用容器意象（"玻璃罐里的春天"）
+        2. 强化"陪伴感"：添加时间维度（"每日穿搭记录员"）
+
+        
+        ## 任务3:结合小红书特点与任务1、任务2的结果，对简介进行分析评估:[#intro#]
+        - 简介的优点分析：[#good#]
+        - 简介的缺点分析：[#bad#]
+        - 简介的改进建议：要考虑小红书对于简介的要求，而且要给具体优化案例[#better#]
+
+        ## 任务4：结合前面三个任务的分析结果与小红书特点，提出头像建议[#avatar#]
+        - 使用那种类型的头像效果好？为什么？：[#better#]
+        
+        ## 任务5：组中结合以上所有分析，给出专业的评分[#rating#]
+        - 满分100分，这个账号应该打几分？[#number#]
+        - 给出总结报告[#summary#]
+
+        ## 输出要求：
+        - 以Dict数据格式，按照一下键值与层级关系输出数据：
+        
+         {
+          "adviceType":'rednote',
+          "accountName": {{name}},
+          "accountIntro": {{intro}},
+          “rating”:{"number":.../100),"summary":..."},
+          "persona":{"des":...,"userstory":...,"usertags":...},
+          "name":{"clear":...,"easy":...,"popular":...,"diff":...,"seo":...,"safe":...,"emotional":...},
+          "intro":{"优点":...,"不足":...,"改进":...},
+          "avatar":{"better:..."}
+
+          }:
+
+        """
+        template = Template(template_string)
+        rendered_template = template.render(**kwargs)
+        print("Rendered_Template:",rendered_template)
+        return rendered_template
+
+    def get_article_advice_template(self,**kwargs):
+        template_string = """
        
        请你从以营销漏斗理论为主的相关理论出发，对"文案原文"进行分析, 认真完成所有任务后严格按照”输出要求“进行输出：
        
@@ -243,6 +326,7 @@ class KimiBot:
        - 以Dict数据格式，按照一下键值与层级关系输出数据：
        
         {
+         "adviceType":"article",
          "productData": {"name":...,"has_usp":...,"usp":...,"has_brandValues":..., "brandValues":...},
          "personaData": {"desc":..., "p_reason":...,"motives":...},
          "campaignData": {"stage":...,"c_reason":...,"objectives":...},
@@ -251,24 +335,27 @@ class KimiBot:
          }:
        
        """
-       template = Template(template_string)
-       rendered_template = template.render(**kwargs)
-       print("Rendered_Template:",rendered_template)
-       return rendered_template
+        template = Template(template_string)
+        rendered_template = template.render(**kwargs)
+        print("Rendered_Template:",rendered_template)
+        return rendered_template
 
    
     def response(self,**kwargs):
         print('Ready TO RESPONSE')
         rendered_template = ''
         use_dict = False
+        print(kwargs)
 
         if kwargs['type'] == 'new_copy':
             print('准备生成新文案')
             rendered_template = self.new_copy_template(**kwargs)
-        elif kwargs['type'] == 'advice':
+        elif kwargs['type'] == 'article':
             print('准备获得建议')
-            rendered_template = self.get_advice_template(**kwargs)
-         
+            rendered_template = self.get_article_advice_template(**kwargs)
+        elif kwargs['type'] == 'rednote':
+            print('识别小红书需求')
+            rendered_template = self.get_rednote_advice_template(**kwargs)
         messages = self.get_messages(rendered_template,use_dict)
         
         completion = self.client.chat.completions.create(

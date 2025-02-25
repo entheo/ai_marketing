@@ -1,7 +1,10 @@
 <!--DashboradPage.vue-->
 <template>
+
+<!---------------------------布局为左右分部，右侧都嵌套在n-layout中--------------------->
 <n-layout position="absolute">
       <n-layout has-sider>
+
         <!--侧边导航-->
           <n-layout-sider
                 class="siderBar"
@@ -39,9 +42,21 @@
                             @click="toShowAdviceModal" 
                             type='info' ghost>
                             <n-icon >
-                            <trending-up-outline/>
+                              <trending-up-outline/>
                             </n-icon>
-                                <span class="btnName"> 分析现有文案</span></n-button>
+                            <span class="btnName"> 用文章解密市场</span>
+                        </n-button>
+                        
+                        <n-button class="modifyCopyButton" strong
+                            :class="{'icon-only':collapsed}"
+                            :disabled="waitAdvice"
+                            @click="toShowRednoteModal"
+                            type='info' ghost>
+                            <n-icon><trending-up-outline/></n-icon>
+                            <span class="btnName">小红书账号评分</span>
+                        </n-button>
+                              
+
                         <n-button quaternary class="show-contact"
                           :class="{'icon-only':collapsed}"
                           type = 'info'
@@ -50,24 +65,23 @@
                             联系作者
                           </span>
                           <n-icon><chatbubbles-outline/></n-icon>
-
                         </n-button>
                     
                     </n-flex>
-
-
-                
-
             </n-layout-sider>
-            <!--右侧内容区(包含设置区与生成文案区)-->
             
+            
+            <!--右侧内容区(包含设置区与生成文案区)-->
+           
             <!--名人名言区域-->
             <n-flex v-show="showQuotes" class="no-content" justify="center">
             <!--n-flex v-show='false'-->
                 <n-card class='quotes' :bordered="false"><famous-quotes/></n-card>
             </n-flex>
+
             <!--设置信息区域--> 
-            <n-layout-content v-show="showSettingPanel">
+           <n-layout v-show="showSettingPanel">
+           <n-layout-content>
               <n-split default-size="560px" direction="horizontal" style="height:100%" :native-scrollbar="false">
                 <template #1>
                   <n-layout class="setting-panel" :native-scrollbar="false">
@@ -147,8 +161,7 @@
                            :label-width="settingLabelWidth"
                            :label-placement="settingPlacement"
                            @createdPersonaInfo="updatePersonaData"/>
-
-
+                        
                         </n-layout> 
                         <n-layout-footer class="siderFooter" position="absolute"> 
                           <n-button  @click="submitSettingData" 
@@ -179,45 +192,51 @@
                     </template>
                 </n-split>
             </n-layout-content>
-        
+            </n-layout>
+
             <!----------------获取建议模式----------------->
-            <n-layout-content v-show="showAdviceMode">
-              <n-split default-size="45%" direction="horizontal" style="height:100%" :native-scrollbar="false">
-                <!--原文展示-->
+            <n-layout v-show="showAdviceMode">
+              <n-split default-size="30%" direction="horizontal" style="height:100%" :native-scrollbar="false">
+                
+                <!--原文展示区-->
                 <template #1>
-                <n-layout content-style="padding:20px" class="content-panel setting-panel" :native-scrollbar="false">
-                <div v-html="markdownOriginal"/>
-                </n-layout>
+                  <n-layout content-style="padding:20px" class="content-panel setting-panel" :native-scrollbar="false">
+                    <div v-html="markdownOriginal"/>
+                  </n-layout>
                 </template>
           
-                <!--建议展示-->
+                <!--建议展示区-->
                 <template #2>
-                 <n-layout>
-                  <n-layout content-style="padding: 20px;" class="content-panel" :native-scrollbar="false">
+                  <n-layout>
 
-                  <div v-html='markdownAdviceResponse' ref='textToCopy'/>
+                    <!--建议内容-->
+                    <n-layout-content content-style="padding: 20px;" class="content-panel" :native-scrollbar="false">
+                      <div v-html='markdownAdviceResponse' ref='textToCopy'/>
+                    </n-layout-content>
+
+                    <!----底部提示---->
+                    <n-layout-footer class="copy-text" position="absolute">
+                      <n-flex justify="center">
+                        <span>以上内容不会自动保存，会在页面刷新后消失</span>
+                        <n-button @click="copyText">复制</n-button>
+                      </n-flex>
+                    </n-layout-footer>
+                
                   </n-layout>
-                  <n-layout-footer class="copy-text" position="absolute">
-                    <n-flex justify="center">
-                      <span>以上内容不会自动保存，会在页面刷新后消失</span>
-                      <n-button @click="copyText">复制</n-button>
-                    </n-flex>
-                  </n-layout-footer>
-                </n-layout>
                 </template>
+              
               </n-split>
-            </n-layout-content>
-    </n-layout>
+            </n-layout>
       
-    <!--
+    
+    </n-layout>
+    <!-- （未启动）
       <n-card :title="已创建列表" :bordered="false" v-if="userInfo.created_campaigns">
         <n-card v-for="cam in userInfo.created_campaigns" :key="cam.id || cam" >
           {{cam}}
         </n-card>
       </n-card>
      -->
-  
-
 
 </n-layout>
 
@@ -233,19 +252,46 @@
  <guide-page @guideFormData="handleGuideFormData" @response='handleResponse'  :modifyMode="modifyMode"/>
 </n-modal>
 
-<!--获得分析建议Modal-->
+<!--输入小红书账号信息-->
+<n-modal
+  v-model:show="showRednoteModal"
+  :mask-closable="false"
+  preset="card"
+  :style="bodyStyle"
+  title="看看你的小红书账号能多多少分？"
+  size="small"
+  :block-scroll="false">
+  
+  <n-layout class='advice-modal'>
+    <n-spin :show='waitAdvice'>
+      <template #description>
+        <n-card :bordered="false">正在分析文案内容...</n-card>
+      </template>
+      
+      <n-layout content-style="padding:20px;">
+        <input-rednote-info @accountInfo="getAdvices" ref="redNoteForm" bordered="false"/>
+        <div class="center_bu">
+          <n-button type="Primary" @click="handleRednoteInfo">开始打分</n-button>
+        </div>
+      </n-layout>
+    
+    </n-spin>
+  </n-layout>
+</n-modal>
+
+<!--获得文章分析建议Modal-->
 <n-modal
   v-model:show="showAdviceModal"
     :mask-closable="false"
     preset = "card"
     :style="bodyStyle"
-    title="对已有文案进行点评" 
+    title="粘贴已有文章，反推市场策略" 
     size="small"
     positive-text="创建" 
     negative-text="取消" 
     :block-scroll="false"
     >
-
+  <!--粘贴文章-->
   <n-layout class='advice-modal'>
     <n-spin :show='waitAdvice'>
       <template #description>
@@ -255,17 +301,18 @@
       <n-layout content-style="padding:20px;">
         <input-copy-form @copyOriginalInfo="getAdvices" ref="copyForm" :bordered="false"/>
         <div class="center_bu">
-          <n-button type="Primary" @click="handleCopyOriginalInfo">获取分析&建议
+          <n-button type="Primary" @click="handleCopyOriginalInfo">获取分析建议
           </n-button>
         </div>
       </n-layout>
     </n-spin>
-      
+     
+    <!----未启动----> 
     <n-layout class="advice-response" v-show="hasAdvice" content-style="padding: 20px" :native-scrollbar="false">
-      <n-layout class='advice-content' 
+      <n-layout-content class='advice-content' 
         :native-scrollbar="false" content-style="height:300px">
         <div v-html="markdownAdviceResponse" />
-      </n-layout>
+      </n-layout-content>
       <n-layout-footer class="center_bu">
         <n-button v-show='hasAdvice' type="info" 
           @click='toSettingForm'>获取新的文案灵感
@@ -298,7 +345,6 @@ import {computed} from 'vue';
 import {ref} from 'vue';
 import axios from 'axios';
 import {onBeforeMount,onMounted,onBeforeUnmount} from 'vue';
-import InputCopyForm from './InputCopyForm.vue'; 
 import {useStore} from 'vuex';
 import {useRouter} from 'vue-router';
 import FamousQuotes from './FamousQuotes.vue';
@@ -312,6 +358,8 @@ import CreateSenarioForm from './CreateSenarioForm.vue';
 import SimpleProductForm from './SimpleProductForm.vue';
 import CreatePersonaForm from './CreatePersonaForm.vue';
 import SimpleCampaignForm from './SimpleCampaignForm.vue';
+import InputCopyForm from './InputCopyForm.vue';
+import InputRednoteInfo from './InputRednoteInfo.vue';
 
 
 const showContactModal=ref(false);
@@ -351,7 +399,7 @@ const bodyStyle = ref({
 });
 
 const showQuotes=ref(true);
-
+//填写文章时触发InputCopyForm组件
 //触发子组件的保存按钮，继而触发emit
 const copyForm = ref(null);
 //触发子组件copyForm的更新=>触发getAdvices方法
@@ -360,6 +408,12 @@ const handleCopyOriginalInfo = () =>{
     copyForm.value.updateCopyOriginal();
     };  
 
+//填写小红书账号信息是触发
+const redNoteForm = ref(null);
+const handleRednoteInfo = () =>{
+    waitAdvice.value = true;
+    redNoteForm.value.updateRednoteInfo();
+    };
 
 /*将原文与营销背景一起发送后台寻求建议
 const showCampaignBackgroundModalRef = ref(null);
@@ -438,22 +492,43 @@ const markdownAdviceResponse = computed(()=>{
     return md.render(adviceTextRef.value)});
 const originalTextRef=ref('');
 const markdownOriginal=computed(()=>{
-    return md.render('# 原文：  \n\n  '+originalTextRef.value)
+    return md.render(originalTextRef.value)
     });
 const token = localStorage.getItem('token');
 
-//触发显示AdviceModal
+//触发显示粘贴文章输入框AdviceModal
 const showAdviceModal = ref(false);
 const toShowAdviceModal = () => {
     fetchUserInfo().then(
         showAdviceModal.value=true
        )} 
 const showAdviceMode = ref(false);
+
+//触发显示小红书账号输入框
+const showRednoteModal = ref(false);
+const toShowRednoteModal = () => {
+    fetchUserInfo().then(
+        showRednoteModal.value=true
+        )}
 //向发起后台请求
 const getAdvices = async(message) => {
+    console.log(message);
+    console.log('message 类型:', typeof message);
     adviceResponse.value={};
-    promptData.value.original=message;
-    promptData.value.type='advice';
+    switch(true){
+      case (message.type=='article'):
+        promptData.value.original=message.info;
+        break;
+      case (message.type=='rednote'):
+        promptData.value.original='';
+        promptData.value.name=message.name;
+        promptData.value.intro=message.intro;
+        break;
+      default:
+        console.log('没有获取数据')
+    }
+    promptData.value.type = message.type;
+    console.log(promptData.value);
     await axios.post("/api/advice/",promptData.value,{
            timeout:50000,
            headers:{
@@ -464,14 +539,19 @@ const getAdvices = async(message) => {
                    // 处理你后端返回的response
                    showAdviceMode.value=true;
                    hasAdvice.value=false;
-                   showAdviceModal.value=false;
                    waitAdvice.value=false;
                    //adviceTextRef.value=resp_json.data
-                   //console.log(resp_json.data);
+                   console.log(resp_json.data);
                    adviceResponse.value=resp_json.data;
-                   originalTextRef.value=message;
                    showQuotes.value=false;
-                   adviceTextRef.value = formatAdviceText();
+                   if(resp_json.data.adviceType=='article'){
+                       originalTextRef.value='# 原文： \n\n'+message.info;
+                       adviceTextRef.value=formatArticleAdviceText()
+                       showAdviceModal.value=false}
+                   else if(resp_json.data.adviceType == 'rednote'){
+                       originalTextRef.value = '# 账号信息：\n\n'+'## '+resp_json.data.accountName+'\n\n'+resp_json.data.accountIntro;
+                       adviceTextRef.value=formatRednoteAdviceText();
+                       showRednoteModal.value=false}
                  })
                 .catch(err => {
             waitAdvice.value=false;
@@ -494,8 +574,72 @@ const getAdvices = async(message) => {
             });
     };
 
-//格式化后台字段
-const formatAdviceText = () =>{
+
+const showDictItems = (dict) => {
+    var result = dict
+    if(typeof dict == 'object'){
+    // 将字典的每一项转换为字符串，并逐行展示
+    result = Object.entries(dict)
+        .map(([key, value]) => `**【${key}】** ${value}`)
+        .join('\n');}
+        
+    return result; 
+};
+//格式化后的小红书反馈
+const formatRednoteAdviceText = ()=>{
+    const rating = adviceResponse.value.rating;
+    const persona = adviceResponse.value.persona;
+    const name = adviceResponse.value.name;
+    const clear = name.clear;
+    const intro = adviceResponse.value.intro;
+    const avatar = adviceResponse.value.avatar;
+    const usertagArray = persona.usertags;
+    const usertags = usertagArray.map((usertag)=>{
+        return `${usertag} `}).join(' ');
+    return `# 评估与建议：
+## 得分—— ${rating.number}/100 
+【评语】${rating.summary} \n\n
+## 受众画像(推测)：
+- **Ta们是谁？** \n
+    ${persona.des} \n
+- **用户故事**  \n
+    ${persona.userstory} \n
+
+- **典型标签**  \n
+    ${usertags} \n\n
+
+## 名称分析：
+- **定位** \n
+    ${showDictItems(clear)} \n
+
+- **传播难度** \n
+    ${showDictItems(name.easy)} \n
+
+- 用户吸引力 \n
+    ${showDictItems(name.popular)}
+    
+- **差异化竞争力** \n
+    ${showDictItems(name.diff)}
+
+- **SEO组合策略** \n
+    ${showDictItems(name.seo)}
+
+- **合规与延展性 \n
+    ${showDictItems(name.safe)}
+
+- **情感共鸣度** \n
+    ${showDictItems(name.emotional)}
+
+## 简介分析：
+${showDictItems(intro)}
+
+## 头像建议：
+${avatar.better} \n\n
+`;
+    }
+
+//格式化后的文章类字段
+const formatArticleAdviceText = () =>{
    
     const campaignBackground = adviceResponse.value.campaignData;
     const persona = adviceResponse.value.personaData;
@@ -511,7 +655,9 @@ const formatAdviceText = () =>{
     return `# 分析与建议：
 
 ## 关于产品——
-- **是否有表达与独特卖点(USP)相关信息？**  \n  
+- **主推产品名称？** \n
+  ${product.name}
+- **是否包含独特卖点(USP)的相关信息？**  \n  
   ${product.has_usp} 。${product.usp}  \n
 - **是否有提倡的品牌理念**?  \n  
   ${product.has_brandValues}。${product.brandValues}  \n\n 
