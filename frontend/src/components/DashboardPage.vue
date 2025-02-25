@@ -258,7 +258,7 @@
   :mask-closable="false"
   preset="card"
   :style="bodyStyle"
-  title="看看你的小红书账号能多多少分？"
+  title="测测你的小红书账号名称能打多少分？"
   size="small"
   :block-scroll="false">
   
