@@ -11,6 +11,10 @@ node_modules/
 frontend/node_modules/.cache/eslint/
 # 忽略特定的 lock 文件
 frontend/node_modules/.package-lock.json
+
+#忽略后端settings.py
+backend/backend/settings.py
+backend/backend/__pycache__/settings.cpython-37.pyc
 # 忽略操作系统生成的文件
 .DS_Store
 Thumbs.db

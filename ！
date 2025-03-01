@@ -7,8 +7,7 @@ import axios from 'axios';
 
 const naive = create();
 const app = createApp(App);
-axios.defaults.baseURL = 'http://stepstowin.wetouch.cn'
-//axios.defaults.baseURL = 'http://140.143.45.244:8012'
+axios.defaults.baseURL = 'http://127.0.0.1:8000'
 
 app.use(naive);
 app.use(router);
