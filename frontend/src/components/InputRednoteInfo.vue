@@ -12,7 +12,7 @@
       />
      </n-form-item>
     
-     <n-form-item label="简介">
+     <n-form-item label="简介:">
       <n-input
         v-model:value="accountIntro"
         maxlength="200"
@@ -20,6 +20,13 @@
         type="textarea"
         :autosize="{minRows:4,maxRow:4}"
         clearable
+      />
+    </n-form-item>
+
+    <n-form-item class="tags" label="用标签描述内容方向: ">
+      <n-dynamic-tags 
+        v-model:value="contentTags"
+        :max="5"
       />
     </n-form-item>
   
@@ -30,17 +37,24 @@
 </template>
 
 <script setup>
-import {NForm, NFormItem, NInput, NButton} from 'naive-ui';
+import {NForm, NFormItem, NInput, NButton,NDynamicTags} from 'naive-ui';
 import {ref,defineEmits,defineExpose} from 'vue';
 
 const accountName = ref(null);
 const accountIntro = ref(null);
+const contentTags = ref([]);
 const infoType = 'rednote'
 
-const emit = defineEmits(['accountName','accountIntro'])
+const emit = defineEmits(['accountName','accountIntro','contentTags'])
 const updateRednoteInfo = () => {
-    emit ('accountInfo',{name:accountName.value,intro:accountIntro.value,type:infoType});
+    emit ('accountInfo',{name:accountName.value,intro:accountIntro.value,tags:contentTags.value,type:infoType});
     }
 
 defineExpose({updateRednoteInfo});
 </script>
+
+<style scoped>
+.tags {
+    margin:0
+    }
+</style>

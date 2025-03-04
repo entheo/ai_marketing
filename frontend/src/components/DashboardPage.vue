@@ -523,6 +523,7 @@ const getAdvices = async(message) => {
         promptData.value.original='';
         promptData.value.name=message.name;
         promptData.value.intro=message.intro;
+        promptData.value.tags=message.tags;
         break;
       default:
         console.log('没有获取数据')
@@ -530,7 +531,7 @@ const getAdvices = async(message) => {
     promptData.value.type = message.type;
     console.log(promptData.value);
     await axios.post("/api/advice/",promptData.value,{
-           timeout:50000,
+           timeout:80000,
            headers:{
                 'Authorization':`Bearer ${token}`,
                 },
@@ -548,8 +549,11 @@ const getAdvices = async(message) => {
                        originalTextRef.value='# 原文： \n\n'+message.info;
                        adviceTextRef.value=formatArticleAdviceText()
                        showAdviceModal.value=false}
+
                    else if(resp_json.data.adviceType == 'rednote'){
-                       originalTextRef.value = '# 账号信息：\n\n'+'## '+resp_json.data.accountName+'\n\n'+resp_json.data.accountIntro;
+                       console.log(resp_json.data);
+                       originalTextRef.value = '# 账号信息：\n\n'+'## '+resp_json.data.accountName+'\n\n'+resp_json.data.accountIntro+'\n\n'+'**内容方向**：'+resp_json.data.contentTags;
+                       console.log(adviceResponse.value);
                        adviceTextRef.value=formatRednoteAdviceText();
                        showRednoteModal.value=false}
                  })
@@ -573,66 +577,71 @@ const getAdvices = async(message) => {
                     duration:4000})
             });
     };
+//展示optimization的Markdown数据
+const getOptMarkdown=(itemArray)=>{
+    
+    //itemArray.forEach(item=>{
+    //lines += ` <li>**${item.task}**</li>  例如：${item.example} \n`
+    //});
+    const lines = itemArray.map(item=>`\n - **${item.task}**：${item.example}`).join('  ');
+    console.log(lines);
+    return lines
+}
 
-
-const showDictItems = (dict) => {
-    var result = dict
-    if(typeof dict == 'object'){
-    // 将字典的每一项转换为字符串，并逐行展示
-    result = Object.entries(dict)
-        .map(([key, value]) => `**【${key}】** ${value}`)
-        .join('\n');}
-        
-    return result; 
-};
 //格式化后的小红书反馈
 const formatRednoteAdviceText = ()=>{
-    const rating = adviceResponse.value.rating;
+    const final = adviceResponse.value.finalRating;
     const persona = adviceResponse.value.persona;
-    const name = adviceResponse.value.name;
-    const clear = name.clear;
+    const name = adviceResponse.value.nameDiagnosis;
     const intro = adviceResponse.value.intro;
     const avatar = adviceResponse.value.avatar;
     const usertagArray = persona.usertags;
     const usertags = usertagArray.map((usertag)=>{
         return `${usertag} `}).join(' ');
-    return `# 评估与建议：
-## 得分—— ${rating.number}/100 
-【评语】${rating.summary} \n\n
+    return `
+# 评估与建议：
+
+## 整体得分: ${final.score}——${final.grade} \n 
+【评语】${final.summary} \n\n
+
 ## 受众画像(推测)：
 - **Ta们是谁？** \n
     ${persona.des} \n
 - **用户故事**  \n
     ${persona.userstory} \n
-
+- **心理诉求** \n
+    ${persona.psychographics}
 - **典型标签**  \n
     ${usertags} \n\n
 
-## 名称分析：
-- **定位** \n
-    ${showDictItems(clear)} \n
+## 名称得分：${name.score} \n
 
-- **传播难度** \n
-    ${showDictItems(name.easy)} \n
+- **定位清晰度**：${name.position.score}分 \n
+    ${name.position.explain} \n
 
-- 用户吸引力 \n
-    ${showDictItems(name.popular)}
+- **传播难度**：${name.spread.score}分 \n
+    ${name.spread.explain} \n
+
+- **情感共鸣力**：${name.emotion.score}分 \n
+    得分: ${name.emotion.score} \n
+    ${name.emotion.explain} \n
     
-- **差异化竞争力** \n
-    ${showDictItems(name.diff)}
+- **SEO潜力**：${name.seo.score}分 \n
+    ${name.seo.explain}
 
-- **SEO组合策略** \n
-    ${showDictItems(name.seo)}
+- **商业与安全性**：${name.safe.score}分 \n
+    ${name.safe.explain}
 
-- **合规与延展性 \n
-    ${showDictItems(name.safe)}
+**【改进建议】** \n
+    ${getOptMarkdown(name.optimization)} \n
+- **名称灵感**：${name.newName}\n\n
 
-- **情感共鸣度** \n
-    ${showDictItems(name.emotional)}
-
-## 简介分析：
-${showDictItems(intro)}
-
+## 简介得分：${intro.score} \n
+- **优点**：${intro.good}\n
+- **不足**：${intro.bad}\n
+**【改进建议】** 
+    ${getOptMarkdown(intro.optimization)}
+- **简介灵感**：${intro.newIntro} \n\n
 ## 头像建议：
 ${avatar.better} \n\n
 `;

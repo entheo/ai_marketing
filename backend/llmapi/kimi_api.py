@@ -8,9 +8,14 @@ from jinja2 import Template
 class KimiBot:
     def __init__(self):
         self.client = OpenAI(
-            api_key = "sk-1QH3ZoMyLYxlTfx2gTOrpYQVUudtj1u9q2GAro9nDe6kkjG8",
-            base_url = "https://api.moonshot.cn/v1",
+            #api_key = "sk-1QH3ZoMyLYxlTfx2gTOrpYQVUudtj1u9q2GAro9nDe6kkjG8",
+            #base_url = "https://api.moonshot.cn/v1",
+            api_key = "sk-839d49ef8e2844ff90e46b809fa2f69c",
+            base_url = "https://api.deepseek.com/v1",
         )
+        self.model="deepseek-chat"
+        #self.model="deepseek-reasoner"
+        #self.model = 'moonshot-v1-128k'
 
         self.role = '''
         #Role：营销大师
@@ -44,7 +49,6 @@ class KimiBot:
         - 在提出营销策略或创作文案时，必须考虑到目标客户的需求和期待。
 
         '''       
-        self.model = 'moonshot-v1-32k'
     
     #kwargs为字典类型的prompt
     def get_cgstao_template(self,**kwargs):
@@ -199,8 +203,127 @@ class KimiBot:
     def get_rednote_advice_template(self,**kwargs):
         template_string = """
         
-        ## 任务背景：
-        请你从小红书营销专业角度，按照以下要求给小红书账号名称:{{name}}与简介:{{intro}}进行评估,按要求成以下5个任务：
+        # 角色与目标 
+        您是小红书账号定位评估专家，性格严谨，评分十分严格，须按专业框架对账号名称、简介进行多维度评分，并输出结构化诊断报告,采用PDCA循环评估模型+小红书流量因子分析法,
+        
+        ## 账号信息
+        - 名称:{{name}}
+        - 简介:{{intro}}
+        - 内容定位：{{tags}}
+
+        # 评分框架(0~100分,要求颗粒度较细):
+        ### 维度：
+        - 定位精准度(position),特别留意名称与内容定位的吻合度有多高？
+        - 传播效能(spread)
+        - 情感共鸣(emotion)，
+        - SEO潜力"(seo)，
+        - 商业潜力与安全性"(safe)
+
+        ### 标准，分为级别(grade)与分数(score)：
+        - "S级(90+)":"以上五项维度评分都非常优秀，没有任何瑕疵",
+        - "A级(80-89)": "能够较好的满足所有评分项的要求，有继续提升空间",
+        - "B级(70-79)": "仅达到评分项要求的最低标准，存在明显可优化项",
+        - "C级(<70)": "存在评分项邀请严重不被满足的情况"
+
+        # 分析与评分步骤analysisSteps"(给出理由): 
+        1.受众洞察(persona)
+        ## "方法": ["用户画像(persona)勾勒","用户故事(userstory)构建","垂直领域(field)定位","标签聚类分析(usertags)", "用户旅程映射"],
+        ## "工具": "小红书受众三棱镜模型：
+        ① 基础属性(包括'年龄/地域/职业') ← ② 行为特征(包括'消费能力') ← ③ 心理动因(包括'内容消费场景')"
+        
+        2.名称诊断(nameDiagnosis)
+        ## "定位精准度(position)":
+        - "权重":0.3,
+        - "评分项":["内容定位的吻合度","垂直领域关键词(filed)","目标受众的理解难度","价值主张明确性","内容形态词"]
+        - "工具":"NLP领域分类器",
+        
+        ## "传播效能力(spread)":
+        - "权重":0.25,
+        - "评分项":["易读性指数", "记忆成本","易传播指数", "记忆点设计"],
+        - "公式":"Log(搜索量)/音节长度",
+
+        ## "情感共鸣力(emotion)":
+        - "权重"：0.15,
+        - "评分项":["情绪热词", "感官词汇","人设鲜活度",]人格化程度"], 
+        - "数据源":("情感词典v3.2"),
+        
+        ## "SEO潜力"(seo):
+        - "权重":0.2, 
+        - "评分项":["核心词突出度", "长尾组合合理性"],
+        
+        ## "商业潜力与安全性"(safe): 
+        - "权重":0.1,
+        - "评分项"["品类扩展性", "变现适配度","合规风险系数"],
+
+        3.简介优化(intro)
+        ## "黄金公式": "SCQA模型（情景-冲突-问题-答案）",
+        ## "元素检测": ["痛点关键词",  "解决方案结构化", "行动召唤按钮"]
+
+        4.头像建议(avatar)结合以上分析结果与小红书特点，提出头像建议[#avatar#]
+        - 使用那种类型的头像效果好？为什么？：[#better#] 
+       
+       # 输出示例(以高度结构化的JSON格式输出)
+       {
+       "adviceType":"rednote",
+       "accountName": "{{name}}",
+       "accountIntro": "{{intro}}",
+       "contentTags": "{{tags}}",
+       
+       "persona": {
+         "des": ...,
+         "userstory": "..."(详细描述一个典型的用户故事),
+         "usertags": [...],
+         "psychographics": "..."
+       },
+      
+      "nameDiagnosis"(严格遵照评分框架与标准): {
+       ”score“:...,
+       "position": {"score": ..., "explain":...},
+       "spread":{"score": ..., "explain":...},
+       "emotion":{"score": ..., "explain": ...},
+       "seo":{"score":...,"explain":...},
+       "sefe:{"score":...,"explain"...},
+       "optimization"(以下须详细描述): [
+          {"task":...,"example":...},
+          {"task":...,"example":...},
+          ],
+       "newName":[...](3个新名字的建议)
+
+      },
+    
+      "intro":{
+        "score":...,
+        "good":...,
+        "bad"":...,
+        "optimization"（以下须详细描述）: [
+          {"task":...,"example":...},
+          {"task":...,"example":...},
+        ],
+        "newIntro":[...])(2个新简介的建议)
+      },
+
+      "avatar":{
+          "better":"..."
+          }
+
+      "finalRating"(严格遵照评分框架与标准): {
+         "grade": ...,
+         "score":...,
+         "field":...,(描述垂直领域)
+         "summary": "..."
+       }
+        
+        """
+        template = Template(template_string)
+        rendered_template = template.render(**kwargs)
+        print("Rendered_Template:",rendered_template)
+        return rendered_template
+
+    def get_rednote_advice_template2(self,**kwargs):
+        template_string = """
+        
+        ## 背景：
+        请你从小红书营销专业角度，结合用户提供的内容方向(标签){{tags}},按照以下要求给小红书账号名称:{{name}}与简介:{{intro}}进行评估,按要求完成以下5个任务：
         
         ##任务1：推测目标受众画像[#persona#]
         - 如何全面的描述这个群体？[#des#]
@@ -266,8 +389,9 @@ class KimiBot:
          {
           "adviceType":'rednote',
           "accountName": {{name}},
-          "accountIntro": {{intro}},
-          “rating”:{"number":.../100),"summary":..."},
+          "accountIntro":{{intro}},
+          "contentTags":{{tags}},
+          "rating":{"number":.../100),"summary":...},
           "persona":{"des":...,"userstory":...,"usertags":...},
           "name":{"clear":...,"easy":...,"popular":...,"diff":...,"seo":...,"safe":...,"emotional":...},
           "intro":{"优点":...,"不足":...,"改进":...},
@@ -281,6 +405,7 @@ class KimiBot:
         print("Rendered_Template:",rendered_template)
         return rendered_template
 
+   
     def get_article_advice_template(self,**kwargs):
         template_string = """
        
@@ -358,13 +483,14 @@ class KimiBot:
             rendered_template = self.get_rednote_advice_template(**kwargs)
         messages = self.get_messages(rendered_template,use_dict)
         
-        completion = self.client.chat.completions.create(
+        response = self.client.chat.completions.create(
             model = self.model,
             messages = messages,
-            temperature = 0.9,
+            temperature = 1.5,
+            #response_format={"type": "json_object"},
         )
-        print("结果：",completion)
-        res = completion.choices[0].message.content
+        print("结果：",response)
+        res = response.choices[0].message.content
         print("结果类型：",type(res))    
         return res
 

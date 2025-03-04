@@ -56,6 +56,7 @@ def get_advice(request):
         if response.startswith("```json") and response.endswith("```"):
             print("注意：服务器返回Markdown语法，须做对应清理")
             json_string = response[7:-3].strip()
+            print("完成MarkDown清理")
         else:
             json_string = response
         try:
