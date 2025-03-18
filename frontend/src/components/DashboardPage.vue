@@ -312,7 +312,7 @@
     </n-layout>
 
     <n-layout v-show="!waitAdvice" content-style="padding:20px;">
-      <div>测测你的小红书账号名称能打多少分？</div>
+      <div class="rednote_title">测测你的小红书账号名称能打多少分？</div>
       <input-rednote-info @accountInfo="getAdvices" ref="redNoteForm" bordered="false"/>
       <div class="center_bu">
         <n-button :disabled="waitAdvice" type="Primary" @click="handleRednoteInfo">开始打分</n-button>
@@ -1213,4 +1213,8 @@ pre{
 
 .active-stage, .inactive-stage{
     display:flex;}
+.rednote_title{
+    font-size:1.2rem;
+    font-weight:bold;
+    margin:30px;}
 </style>
