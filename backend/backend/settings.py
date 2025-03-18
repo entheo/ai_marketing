@@ -29,7 +29,8 @@ ALLOWED_HOSTS = [
  "www.wetouch.cn",
  "stepstowin.wetouch.cn",
  "140.143.45.244",
- "127.0.0.1"
+ "127.0.0.1",
+ "localhost"
 ]
 
 
@@ -63,7 +64,8 @@ MIDDLEWARE = [
 CORS_ORIGIN_WHITELIST = [
     "http://stepstowin.wetouch.cn",
     "http://stepstowin.wetouch.cn:8008",
-    "http://140.143.45.244:8080"
+    "http://140.143.45.244:8080",
+    "http://localhost:8080"
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -107,7 +109,8 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME':'aimarketing',
         'USER': 'root',
-        'PASSWORD': 'wangjue0508A!',
+        #'PASSWORD': 'wangjue0508A!',
+        'PASSWORD':'25479wangjue',
         'HOST': '127.0.0.1',  # 如：'127.0.0.1' 或者留空
         'PORT': '3306',  # 例如 '3306'
     }

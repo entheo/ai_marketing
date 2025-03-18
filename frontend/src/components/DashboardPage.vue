@@ -258,24 +258,67 @@
   :mask-closable="false"
   preset="card"
   :style="bodyStyle"
-  title="测测你的小红书账号名称能打多少分？"
   size="small"
   :block-scroll="false">
   
   <n-layout class='advice-modal'>
-    <n-spin :show='waitAdvice'>
-      <template #description>
-        <n-card :bordered="false">正在分析文案内容...</n-card>
-      </template>
-      
-      <n-layout content-style="padding:20px;">
-        <input-rednote-info @accountInfo="getAdvices" ref="redNoteForm" bordered="false"/>
-        <div class="center_bu">
-          <n-button type="Primary" @click="handleRednoteInfo">开始打分</n-button>
-        </div>
-      </n-layout>
+    <n-layout v-show="waitAdvice">
+      <n-space justify="center">
+        <n-space vertical>
+          <n-progress type="circle" :percentage="currentProgress" />
+         
+          <!-- 阶段状态文字 -->
+          <n-space justify="space-between" class="stage-texts" 
+            :style="{
+                '--n-gap': '24px',
+                'gap': 'var(--n-gap)' 
+                }"
+          >
+            <div 
+              v-for="(stage, index) in stages"
+              :key="index"
+              :class="{ 'active-stage': index === activeStage, 'inactive-stage': index !== activeStage }">
+              <n-icon :component="stage.icon" size="22" class="stage-icon" />
+              <span class="stage-title">{{ stage.label }}</span>
+            </div>
+          </n-space>
+
+         
+         
+         <!--
+          阶段状态徽章 
+         <n-space justify="space-between" class="stage-badges">
+           <n-badge 
+              v-for="(stage, index) in stages"
+              :key="index"
+              :type="index < activeStage ? 'success' : 'default'"
+              :dot="index === activeStage">
+              <n-icon :component="stage.icon" size="22" class="stage-icon" />
+              <span class="stage-title">{{ stage.label }}</span>
+           </n-badge>
+         </n-space>
+         -->
+
+         <!-- 动态描述 -->
+          <transition name="fade">
+            <n-text class="stage-desc" depth="3">
+             {{ stages[activeStage].description }}
+            </n-text>
+         </transition>
+        
+        </n-space>
+      </n-space>
+
+    </n-layout>
+
+    <n-layout v-show="!waitAdvice" content-style="padding:20px;">
+      <div>测测你的小红书账号名称能打多少分？</div>
+      <input-rednote-info @accountInfo="getAdvices" ref="redNoteForm" bordered="false"/>
+      <div class="center_bu">
+        <n-button :disabled="waitAdvice" type="Primary" @click="handleRednoteInfo">开始打分</n-button>
+      </div>
+    </n-layout>
     
-    </n-spin>
   </n-layout>
 </n-modal>
 
@@ -339,7 +382,8 @@
 <script setup>
 import GuidePage from './GuidePage.vue';
 import {NModal, NButton, NLayout,NSpin,NLayoutContent,NLayoutHeader,NLayoutFooter,NCard} from 'naive-ui';
-import {useNotification,NIcon,NDivider,NFlex,NSplit,NLayoutSider} from 'naive-ui';
+import {useNotification,NSpace,NIcon,NDivider,NFlex,NSplit,NLayoutSider,NProgress} from 'naive-ui';
+import {NText} from 'naive-ui';
 import MarkdownIt from 'markdown-it';
 import {computed} from 'vue';
 import {ref} from 'vue';
@@ -352,6 +396,8 @@ import Clipboard from 'clipboard';
 
 //导入图标
 import {CaretForwardCircleOutline,ChatbubblesOutline,TrendingUpOutline,Cafe,CheckmarkDone,CreateOutline,HappyOutline} from '@vicons/ionicons5';
+
+import {BookOutline,AnalyticsOutline,DocumentTextOutline} from '@vicons/ionicons5';
 
 //导入表单组件
 import CreateSenarioForm from './CreateSenarioForm.vue';
@@ -408,10 +454,11 @@ const handleCopyOriginalInfo = () =>{
     copyForm.value.updateCopyOriginal();
     };  
 
-//填写小红书账号信息是触发
+//填写小红书账号信息后触发
 const redNoteForm = ref(null);
 const handleRednoteInfo = () =>{
     waitAdvice.value = true;
+    simulateProgress();//调用加载函数
     redNoteForm.value.updateRednoteInfo();
     };
 
@@ -863,8 +910,120 @@ const submitSettingData = async()=>{
            }catch (error) {
         console.error('Failed to get info:', error);
         }
-        };   
+        };
 
+// 加载过程配置
+// 阶段配置（权重/图标/文案）
+const stages = [
+  { 
+    weight: 20,
+    label: '理解需求',
+    icon: BookOutline,
+    description: '正在解析输入数据并建立语义模型...' 
+  },
+  { 
+    weight: 60,
+    label: '专项分析',
+    icon: AnalyticsOutline,
+    description: '执行多维度逻辑推理与数据关联...' 
+  },
+  { 
+    weight: 20,
+    label: '撰写报告',
+    icon: DocumentTextOutline,
+    description: '生成结构化结论并优化展示形式...' 
+  }
+];
+const currentProgress = ref(0);
+const activeStage = ref(0);
+
+// 状态控制变量
+let abortController = new AbortController();
+
+// 分阶段模拟加载
+const simulateProgress = () => {
+  // 终止前序未完成的加载
+  abortController.abort();
+  abortController = new AbortController();
+
+  // 重置核心状态
+  currentProgress.value = 0;
+  activeStage.value = 0;
+// 阶段执行器
+  const runStage = (index, accumulated) => {
+    if (abortController.signal.aborted || index >= stages.length) return;
+
+    activeStage.value = index;
+    const stage = stages[index];
+    const target = accumulated + stage.weight;
+
+    // 恢复基础间隔时间计算
+    const baseInterval = (2000 * stage.weight) / 100; 
+    let stepsCompleted = 0;
+
+    // 动态更新器
+    const dynamicUpdate = () => {
+      // 边界检查
+      if (
+        abortController.signal.aborted ||
+        currentProgress.value >= 100 ||
+        stepsCompleted >= stage.weight
+      ) {
+        if (!abortController.signal.aborted && index < stages.length - 1) {
+          runStage(index + 1, target);
+        }
+        return;
+      }
+
+      // 生成随机增量
+      const progressIncrement = Math.floor(Math.random() * 2) + 1;
+      currentProgress.value = Math.min(
+        currentProgress.value + progressIncrement,
+        target,
+        100
+      );
+      
+      // 更新步骤计数
+      stepsCompleted += progressIncrement;
+
+      // 计算动态间隔
+      const intervalJitter = baseInterval * 0.2 * (Math.random() > 0.5 ? 1 : -1);
+      const dynamicInterval = Math.max(50, baseInterval + intervalJitter);
+
+      // 设置下一个更新
+      const timerId = setTimeout(dynamicUpdate, dynamicInterval);
+
+      // 中断清理
+      abortController.signal.addEventListener('abort', () => {
+        clearTimeout(timerId);
+      });
+    };
+
+    dynamicUpdate();
+  };
+
+  // 启动第一阶段
+  runStage(0, 0);
+};
+
+/*const simulateProgress = () => {
+  let accumulated = 0;
+
+  stages.forEach((stage, index) => {
+    setTimeout(() => {
+      const target = accumulated + stage.weight;
+      const interval = setInterval(() => {
+        if (currentProgress.value < target) {
+          currentProgress.value += 1;
+        } else {
+          clearInterval(interval);
+          if (index < stages.length - 1) activeStage.value += 1;
+        }
+      }, 200); // 每个百分点200ms（网页3推荐的流畅动画阈值）
+    }, index * 2000); // 阶段间隔2秒
+    accumulated += stage.weight;
+  });
+};*/
 
 onBeforeUnmount(() => {
    if (clipboard) {
@@ -996,4 +1155,62 @@ pre{
     padding-top:15px}
 .copy-text .n-flex{
     align-items:center}
+
+.stage-loader {
+  padding: 32px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.progress-label {
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--n-fill-color);
+}
+
+.stage-badges {
+  margin-top: 24px;
+  padding: 0 15%;
+}
+
+.stage-title {
+  margin-left: 8px;
+  font-size: 15px;
+}
+.stage-texts{
+    margin-top:20px;
+    }
+:deep(.n-space.stage-texts) {
+  --n-gap: 24px;
+  gap: var(--n-gap);
+}
+.stage-desc {
+  display: block;
+  margin-bottom: 20px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.4s ease;
+}
+.fade-enter, .fade-leave-to {
+  opacity: 0;
+}
+.progress {
+    margin:20px}
+
+/* 激活阶段的样式 */
+.active-stage .stage-title ,.active-stage .stage-icon {
+  color: #CC0000; /* 激活阶段的文字颜色为黑色（或任何亮色） */
+  font-weight: bold; /* 可选：让文字更醒目 */
+}
+
+/* 未激活阶段的样式 */
+.inactive-stage .stage-title ,.inactive-stage .stage-icon{
+  color: #ccc; /* 未激活阶段的文字颜色为灰色 */
+}
+
+.active-stage, .inactive-stage{
+    display:flex;}
 </style>

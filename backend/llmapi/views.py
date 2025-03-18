@@ -8,7 +8,7 @@ from rest_framework.decorators import api_view
 from django.http.response import JsonResponse
 import json, re
 from django.http import JsonResponse
-
+from . import test
 
 kimi_bot = kimi_api.KimiBot()
 
@@ -136,6 +136,8 @@ def extract_information(raw_data):
 
 @csrf_exempt
 def test_response(request):
+    test.process_request(request)
+    '''
     if request.method=='POST':
         print('REQUEST：',request.body);
         data = json.loads(request.body.decode('utf-8'))  # 解析JSON数据
@@ -143,3 +145,4 @@ def test_response(request):
         
         res = json.dumps(data)
     return JsonResponse(res,safe=False)
+    '''
