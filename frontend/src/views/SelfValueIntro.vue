@@ -1,112 +1,130 @@
 <template>
-  <div class="intro-breath-page">
-    <div class="intro-gradient intro-gradient-a"></div>
-    <div class="intro-gradient intro-gradient-b"></div>
-    <div class="intro-gradient intro-gradient-c"></div>
+  <section class="intro-wrap">
+    <div class="intro-card">
+      <div class="intro-body">
+        <p> "欢迎来到你的个人商业实验室。🧪</p>
+        <p></p>
+        <p> 在接下来的对话中，我们将一起完成一件重要的事：**把你的独特价值转化为可持续的商业系统**。</p>
+        <p></p>
+        <p> 这不是一次简单的问答，而是一次深度的自我考古。我会挑战你的假设，也会保护你的热情。</p>
+        <p></p>
+        <p> 准备好开始了吗？让我们从第一个问题出发：</p>
+      </div>
 
-    <div class="page-shell intro-shell">
-      <div class="page-container intro-container">
-        <div class="ui-eyebrow">开始之前</div>
-
-        <h1 class="ui-title">
-          这里没有标准答案，你也不需要把自己表达得完整。
-        </h1>
-
-        <p class="ui-subtitle">
-          哪怕有些地方还很模糊，也可以从你最有感觉的部分开始。
-        </p>
-
-        <div class="ui-actions">
-          <button class="ui-btn-secondary" type="button" @click="goBack">
-            返回上一页
-          </button>
-          <button class="ui-btn-primary" type="button" @click="goQuestions">
-            进入问题
-          </button>
-        </div>
+      <div class="intro-actions">
+        <!--
+        <button class="intro-start-btn" type="button" @click="$emit('start')">
+          确认开始
+        </button>
+        -->
+        <button class="intro-start-btn" type="button" :disabled="starting" @click="handleStart">
+          {{ starting ? '正在进入...' : '确认开始' }}
+        </button>
+      
       </div>
     </div>
-  </div>
+  </section>
 </template>
 
 <script>
 export default {
   name: 'SelfValueIntro',
+  emits: ['start'],
+  
+  mounted() {
+    this.$store.dispatch('prefetchFirstQuestion').catch(err => {
+    console.error('预取第一题失败', err)
+    })
+  },
+
   methods: {
-    goBack() {
-      this.$router.back()
-    },
-    goQuestions() {
-      this.$router.push('/self-value/questions')
+  async handleStart() {
+    if (this.starting) return
+
+    this.starting = true
+
+    try {
+      if (!this.$store.state.first_question_ready) {
+        await this.$store.dispatch('prefetchFirstQuestion')
+      }
+
+      this.$emit('start')
+    } catch (err) {
+      console.error('进入问答失败', err)
+    } finally {
+      this.starting = false
     }
   }
+}
+
 }
 </script>
 
 <style scoped>
-.intro-breath-page {
-  position: relative;
+.intro-wrap {
   min-height: 100vh;
-  overflow: hidden;
-  background: #f7f5f2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  background: var(--color-bg-page);
 }
 
-.intro-shell {
-  position: relative;
-  z-index: 2;
+.intro-card {
+  width: 100%;
+  max-width: 820px;
+  padding: 48px 40px;
+  border-radius: 28px;
+  background: rgba(255, 253, 249, 0.9);
+  border: 1px solid rgba(216, 208, 197, 0.7);
+  box-shadow: 0 10px 30px rgba(34, 28, 22, 0.06);
 }
 
-.intro-container {
-  position: relative;
-  z-index: 2;
+.intro-body p {
+  margin: 0 0 14px;
+  font-size: 18px;
+  line-height: 1.9;
+  color: rgba(47, 41, 36, 0.82);
+  white-space: pre-wrap;
 }
 
-.intro-gradient {
-  position: absolute;
+.intro-actions {
+  margin-top: 28px;
+}
+
+.intro-start-btn {
+  min-width: 140px;
+  height: 46px;
+  padding: 0 24px;
+  border: none;
   border-radius: 999px;
-  filter: blur(80px);
-  opacity: 0.42;
-  pointer-events: none;
-  transform-origin: center;
-  animation: floatBreath 16s ease-in-out infinite;
+  background: #2f4f6f;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 8px 20px rgba(47, 79, 111, 0.18);
 }
 
-.intro-gradient-a {
-  width: 520px;
-  height: 520px;
-  left: -120px;
-  top: -80px;
-  background: radial-gradient(circle, rgba(182, 207, 255, 0.75) 0%, rgba(182, 207, 255, 0) 70%);
-  animation-delay: 0s;
+.intro-start-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(47, 79, 111, 0.22);
 }
 
-.intro-gradient-b {
-  width: 520px;
-  height: 520px;
-  right: -140px;
-  top: 40px;
-  background: radial-gradient(circle, rgba(255, 214, 228, 0.6) 0%, rgba(255, 214, 228, 0) 72%);
-  animation-delay: 3s;
-}
-
-.intro-gradient-c {
-  width: 620px;
-  height: 620px;
-  left: 18%;
-  bottom: -220px;
-  background: radial-gradient(circle, rgba(205, 197, 255, 0.42) 0%, rgba(205, 197, 255, 0) 74%);
-  animation-delay: 6s;
-}
-
-@keyframes floatBreath {
-  0% {
-    transform: translate3d(0, 0, 0) scale(1);
+@media (max-width: 768px) {
+  .intro-card {
+    padding: 32px 22px;
+    border-radius: 22px;
   }
-  50% {
-    transform: translate3d(0, -10px, 0) scale(1.04);
+
+  .intro-body p {
+    font-size: 16px;
+    line-height: 1.8;
   }
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
+
+  .intro-start-btn {
+    width: 100%;
   }
 }
 </style>
