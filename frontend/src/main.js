@@ -1,19 +1,31 @@
 import { createApp } from 'vue';
 import App from './App.vue';
-import {create} from 'naive-ui';
-import router from './router'; 
+import { create } from 'naive-ui';
+import router from './router';
 import store from './store';
-import axios from 'axios';
+
+import './styles/tokens.css';
+import './styles/base.css';
+import './styles/ui.css';
 
 const naive = create();
-const app = createApp(App);
-//axios.defaults.baseURL = 'http://stepstowin.wetouch.cn'
-axios.defaults.baseURL = 'http://localhost:8001'
 
-app.use(naive);
-app.use(router);
-app.use(store);
-app.mount('#app');
+async function bootstrap() {
+  const app = createApp(App);
 
+  app.use(naive);
+  app.use(router);
+  app.use(store);
 
-//createApp(App).mount('#app')
+  if (localStorage.getItem('token')) {
+    try {
+      await store.dispatch('checkAuth')
+    } catch (error) {
+      console.error('登录态校验失败：', error)
+    }
+  }
+
+  app.mount('#app');
+}
+
+bootstrap();

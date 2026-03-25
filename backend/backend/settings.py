@@ -30,7 +30,8 @@ ALLOWED_HOSTS = [
  "stepstowin.wetouch.cn",
  "140.143.45.244",
  "127.0.0.1",
- "localhost"
+ "localhost",
+ "*"
 ]
 
 
@@ -48,26 +49,29 @@ INSTALLED_APPS = [
     'account',
     'llmapi',
     'marketing',
+    'selfvalue'
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
 ]
 
 CORS_ORIGIN_WHITELIST = [
     "http://stepstowin.wetouch.cn",
     "http://stepstowin.wetouch.cn:8008",
     "http://140.143.45.244:8080",
-    "http://localhost:8080"
+    "http://localhost:8081",
+    "http://localhost:8080",
+    "http://localhost:8002"
 ]
-
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = ['http://127.0.0.1:8081']
 CORS_ALLOW_METHODS = [

@@ -1,0 +1,479 @@
+<template>
+  <div class="dashboard-root">
+    <aside class="dashboard-rail">
+      <div class="rail-top">
+        <button class="rail-toggle" type="button" @click="menuOpen = true">
+          ☰
+        </button>
+      </div>
+    </aside>
+
+    <main class="dashboard-main">
+      <router-view />
+    </main>
+
+    <transition name="drawer-fade">
+      <div
+        v-if="menuOpen"
+        class="dashboard-overlay"
+        @click="menuOpen = false"
+      ></div>
+    </transition>
+
+    <transition name="drawer-slide">
+      <aside v-if="menuOpen" class="dashboard-drawer">
+        <div class="drawer-head">
+          <div class="drawer-brand-block">
+            <div class="drawer-brand-mark">棱镜</div>
+            <div class="drawer-brand-text">
+              <div class="drawer-brand-title">棱镜</div>
+              <div class="drawer-brand-subtitle">你的个人价值罗盘</div>
+            </div>
+          </div>
+          
+
+          <button class="drawer-close" type="button" @click="menuOpen = false">
+            ×
+          </button>
+        </div>
+
+        <p class="drawer-intro">
+          从看见自己开始，尝试向外验证、落地。
+        </p>
+
+        <div class="drawer-account">
+  <template v-if="$store.getters.isLoggedIn">
+    <div class="drawer-account-user">
+      {{displayUsername}}
+    </div>
+
+    <div class="drawer-account-actions">
+      <button
+        class="drawer-account-btn"
+        type="button"
+        @click="goHome"
+      >
+        返回首页
+      </button>
+
+      <button
+        class="drawer-account-btn drawer-account-btn--ghost"
+        type="button"
+        @click="handleLogout"
+      >
+        退出登录
+      </button>
+    </div>
+  </template>
+
+  <template v-else>
+    <button
+      class="drawer-account-btn"
+      type="button"
+      @click="goHome"
+    >
+      返回首页登录
+    </button>
+  </template>
+</div>
+
+
+        <div class="drawer-group">
+          <div class="drawer-group-title">向内看见</div>
+
+          <button
+            class="drawer-nav"
+            :class="{ 'drawer-nav--active': isActive('/dashboard/questions') }"
+            type="button"
+            @click="openAndGo('/dashboard/questions')"
+          >
+            重新发现自己
+          </button>
+
+          <button
+            class="drawer-nav"
+            :class="{ 'drawer-nav--active': isActive('/dashboard/canvas') }"
+            type="button"
+            @click="openAndGo('/dashboard/canvas')"
+          >
+            开始价值落地
+          </button>
+        </div>
+
+        <div class="drawer-group">
+          <div class="drawer-group-title">向外验证</div>
+
+          <button
+            class="drawer-nav"
+            :class="{ 'drawer-nav--active': isActive('/dashboard/market') }"
+            type="button"
+            @click="openAndGo('/dashboard/market')"
+          >
+            看清外部机会
+          </button>
+
+          <button
+            class="drawer-nav"
+            :class="{ 'drawer-nav--active': isActive('/dashboard/rednote') }"
+            type="button"
+            @click="openAndGo('/dashboard/rednote')"
+          >
+            快速评估名字
+          </button>
+        </div>
+
+        <div class="drawer-group drawer-group-bottom">
+          <div class="drawer-group-title">辅助功能</div>
+
+          <button class="drawer-nav" type="button" @click="showContactModal = true">
+            联系作者
+          </button>
+        </div>
+      </aside>
+    </transition>
+
+    <n-modal
+      v-model:show="showContactModal"
+      preset="card"
+      style="width: 420px;"
+      title="联系作者"
+    >
+      <div class="contact-content">
+        如果你想反馈问题、交流想法，或者聊聊你正在做的方向，可以在这里放你的联系方式。
+      </div>
+    </n-modal>
+  </div>
+</template>
+
+<script>
+import { NModal } from 'naive-ui'
+
+export default {
+  name: 'DashboardPage',
+
+  components: {
+    NModal
+  },
+
+  data() {
+    return {
+      menuOpen: false,
+      showContactModal: false,
+      cacheUsername:localStorage.getItem('username') || ''
+    }
+  },
+ /* 
+  async created(){
+      if (this .$store.getters.isLoggedIn) {
+          try{
+              await this.$store.dispatch('checkAuth')
+              } catch(error){
+                  console.error('获取当前用户失败',error)
+                  }
+                  }
+      },
+  */
+  computed:{
+      displayUsername(){
+          return this.$store.state.user || ''
+      },
+  
+  watch:{
+      '$store.state.user' (newVal){
+          if(newVal){
+              this.cacheUsername = newVal}
+              }
+      },
+  methods: {
+
+    openAndGo(path) {
+      this.menuOpen = false
+      this.$router.push(path)
+    },
+
+    isActive(path) {
+      return this.$route.path === path
+    },
+
+    goHome(){
+        this.menuOpen = false
+        this.$router.push('/')
+        },
+
+    async handleLogout(){
+        try{
+          await this.$store.dispatch('logout')
+          this.menuOpen = false
+          window.location.href='/'
+        } catch (error){
+            console.error('退出登录失败',error)
+            }}
+  }
+}
+</script>
+
+<style scoped>
+.dashboard-root {
+  position: relative;
+  min-height: 100vh;
+  background: var(--color-bg-page);
+}
+
+.dashboard-rail {
+  position: fixed;
+  left: 18px;
+  top: 18px;
+  width: auto;
+  background: transparent;
+  border: none;
+  z-index: 20;
+}
+
+.rail-top {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.rail-toggle {
+  width: 42px;
+  height: 40px;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  background: rgba(255, 253, 249, 0.24);
+  color: rgba(31,28,23,0.72);
+  font-size: 17px;
+  line-height: 1;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 14px rgba(34, 28, 22, 0.03);
+  transition:background 0.18s ease,transform 0.18s ease,box-shadow 0.18s ease;
+}
+
+
+.rail-toggle:hover {
+    background:rgba(255,253,249,0.5);
+    color:rgba(31,28,23,0.9);
+    transform: translateY(-1px);
+    box-shadow:0 8px 18px rgba(34,28,22,0.05);
+}
+
+.dashboard-main {
+  margin-left: 0;
+  min-height: 100vh;
+  background: var(--color-bg-page);
+}
+
+.dashboard-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(24, 20, 16, 0.18);
+  z-index: 39;
+}
+
+.dashboard-drawer {
+  position: fixed;
+  left: 72px;
+  top: 0;
+  bottom: 0;
+  width: 280px;
+  background: #fffdf9;
+  border-right: 1px solid rgba(216, 208, 197, 0.7);
+  box-shadow: 8px 0 30px rgba(34, 28, 22, 0.08);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 16px 16px;
+}
+
+.drawer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 26px;
+}
+
+.drawer-brand-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.drawer-brand-mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: #f3ede5;
+  color: var(--color-text-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.drawer-brand-title {
+  font-size: 17px;
+  line-height: 1.4;
+  color: var(--color-text-strong);
+  font-weight: 600;
+}
+
+.drawer-brand-subtitle {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-light);
+  margin-top: 2px;
+}
+
+.drawer-close {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.drawer-group {
+  margin-bottom: 22px;
+}
+
+.drawer-group-bottom {
+  margin-top: auto;
+  margin-bottom: 0;
+}
+
+.drawer-group-title {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-light);
+  margin: 0 0 10px 6px;
+  letter-spacing: 0.04em;
+}
+
+.drawer-nav {
+  width: 100%;
+  display: block;
+  text-align: left;
+  padding: 13px 14px;
+  margin-bottom: 8px;
+  border: none;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--color-text-strong);
+  font-size: 15px;
+  line-height: 1.5;
+  cursor: pointer;
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+
+.drawer-nav:hover {
+  background: #f6f1ea;
+  transform: translateY(-1px);
+}
+
+.drawer-nav--active {
+  background: #f5efe7;
+  color: var(--color-text-strong);
+  font-weight: 600;
+}
+
+.contact-content {
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--color-text-muted);
+}
+
+.drawer-fade-enter-active,
+.drawer-fade-leave-active {
+  transition: opacity 0.18s ease;
+}
+
+.drawer-fade-enter-from,
+.drawer-fade-leave-to {
+  opacity: 0;
+}
+
+.drawer-slide-enter-active,
+.drawer-slide-leave-active {
+  transition: transform 0.22s ease, opacity 0.22s ease;
+}
+
+.drawer-slide-enter-from,
+.drawer-slide-leave-to {
+  transform: translateX(-14px);
+  opacity: 0;
+}
+
+.drawer-intro {
+  margin: -4px 0 22px;
+  padding-left: 2px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--color-text-light);
+  max-width: 220px;
+}
+
+.drawer-account {
+  margin: 0 0 22px;
+  padding: 12px;
+  border-radius: 16px;
+  background: #f8f3ec;
+  border: 1px solid rgba(216, 208, 197, 0.55);
+}
+
+.drawer-account-user {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--color-text-strong);
+  margin-bottom: 10px;
+  word-break: break-all;
+}
+
+.drawer-account-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.drawer-account-btn {
+  width: 100%;
+  height: 40px;
+  border: none;
+  border-radius: 12px;
+  background: #ece3d7;
+  color: var(--color-text-strong);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+
+.drawer-account-btn:hover {
+  background: #e7dccf;
+  transform: translateY(-1px);
+}
+
+.drawer-account-btn--ghost {
+  background: transparent;
+  border: 1px solid rgba(180, 168, 154, 0.7);
+}
+
+.drawer-account-btn--ghost:hover {
+  background: #f5efe7;
+}
+
+
+@media (max-width: 768px) {
+  .dashboard-drawer {
+    left: 0;
+    width: min(82vw, 300px);
+  }
+}
+</style>

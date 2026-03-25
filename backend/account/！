@@ -44,47 +44,54 @@ class RegisterAPIView(APIView):
         print(serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 class LoginAPIView(APIView):
-    def get_tokens_for_user(self, user, keep_logged_in_for_days):
-        refresh = RefreshToken.for_user(user)
-        refresh.lifetime = timedelta(days=keep_logged_in_for_days)
-        access_token = refresh.access_token
+    
+    def get_tokens_for_user(self,user,keep_logged_in_for_days):
+       refresh = RefreshToken.for_user(user)
+       refresh.lifetime = timedelta(days=keep_logged_in_for_days)
+       access_token = refresh.access_token
+       print('access_token',access_token)
 
-        return {
+       return {
             'refresh': str(refresh),
             'access': str(access_token),
         }
-
+    '''
     def post(self, request):
         keep_logged_in_for_days = int(request.data.get('keep_logged_in_for_days', 7))
         username = request.data.get('username')
         password = request.data.get('password')
+        user = authenticate(username=username, password=password)
+        print('USER:',user)
+        if user:
+            token = self.get_tokens_for_user(user,keep_logged_in_for_days)
+            login(request,user)
+            csrf_token = get_token(request)
+            #created_brands = get_created_brands(username)
+            resp = Response({"message": "loggedIn",'username':username,'token':token,'csrf_token':csrf_token}, status=status.HTTP_200_OK)
+            resp.set_cookie('csrf_token',csrf_token)
+            return resp    
+        return Response({"message": "用户名或密码错误"}, status=status.HTTP_400_BAD_REQUEST)
+     '''
+    def post(self, request):
+        keep_logged_in_for_days = int(req0uest.data.get('keep_logged_in_for_days', 7))
+        username = request.data.get('username')
+        password = request.data.get('password')
+
+        print('username:', username)
+        print('password:', password)
+
+        from .models import Users
+        db_user = Users.objects.filter(username=username).first()
+        print('db_user:', db_user)
+        print('db_user exists:', bool(db_user))
+
+        if db_user:
+            print('check_password:', db_user.check_password(password))
+            print('is_active:', db_user.is_active)
 
         user = authenticate(username=username, password=password)
-
-        if user:
-            token = self.get_tokens_for_user(user, keep_logged_in_for_days)
-            login(request, user)
-            csrf_token = get_token(request)
-
-            resp = Response(
-                {
-                    "message": "loggedIn",
-                    "username": username,
-                    "token": token,
-                    "csrf_token": csrf_token
-                },
-                status=status.HTTP_200_OK
-            )
-            resp.set_cookie('csrf_token', csrf_token)
-            return resp
-
-        return Response(
-            {"message": "用户名或密码错误"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
+        print('authenticated user:', user)
 
 class AuthAPIView(APIView):
     permission_classes = [IsAuthenticated]  # 使用JWT验证

@@ -63,22 +63,6 @@ export default createStore({
       })
     },
 
-    register(_, userData) {
-      return new Promise((resolve, reject) => {
-        axios({
-          url: 'http://localhost:8002/account/register/',
-          data: userData,
-          method: 'POST'
-        })
-          .then(resp => {
-            resolve(resp)
-          })
-          .catch(err => {
-            reject(err)
-          })
-      })
-    },
-
     logout({ commit }) {
       return new Promise((resolve) => {
         commit('logout')
@@ -87,34 +71,7 @@ export default createStore({
         delete axios.defaults.headers.common['Authorization']
         resolve()
       })
-    },
-checkAuth({ commit, state }) {
-  return new Promise((resolve, reject) => {
-    if (!state.token) {
-      reject(new Error('没有 token'))
-      return
     }
-
-    axios({
-      url: 'http://localhost:8002/account/auth/',
-      method: 'GET'
-    })
-      .then(resp => {
-        const user = resp.data.username
-        localStorage.setItem('username', user)
-        commit('auth_success', { token: state.token, user })
-        resolve(resp)
-      })
-      .catch(err => {
-        commit('logout')
-        localStorage.removeItem('token')
-        localStorage.removeItem('username')
-        delete axios.defaults.headers.common['Authorization']
-        reject(err)
-      })
-  })
-},
-
   },
 
   getters: {

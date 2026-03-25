@@ -1,0 +1,24 @@
+<svg
+  width="96"
+  height="96"
+  viewBox="0 0 100 100"
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+  aria-label="棱镜 logo"
+>
+  <g
+    stroke="currentColor"
+    stroke-width="6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M50 12 L28 72" />
+    <path d="M50 12 L72 72" />
+    <path d="M28 72 L50 84" />
+    <path d="M50 84 L72 72" />
+    <path d="M28 72 L50 58" />
+    <path d="M50 58 L72 72" />
+    <path d="M50 12 L50 58" />
+    <path d="M50 58 L48 84" />
+  </g>
+</svg>

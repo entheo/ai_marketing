@@ -1,7 +1,7 @@
 from pathlib import Path
 from openai import OpenAI
 from jinja2 import Template
-
+from . import prompt_selfvalue as ps
 #Kimi API
 
 
@@ -10,7 +10,13 @@ class KimiBot:
         self.client = OpenAI(
             #api_key = "sk-1QH3ZoMyLYxlTfx2gTOrpYQVUudtj1u9q2GAro9nDe6kkjG8",
             #base_url = "https://api.moonshot.cn/v1",
-            api_key = "sk-839d49ef8e2844ff90e46b809fa2f69c",
+            
+            #stepstowin
+            #api_key = "sk-839d49ef8e2844ff90e46b809fa2f69c",
+            
+            #selfvalue
+            api_key = "sk-53a12717e6674e41bec1e667ddbd5258",
+
             base_url = "https://api.deepseek.com/v1",
         )
         self.model="deepseek-chat"
@@ -71,11 +77,11 @@ class KimiBot:
         
         return rendered_template
 
-    def get_messages(self,rendered_template,use_dict):
+    def get_messages(self,rendered_template,use_dict=False,system_role=None):
         messages = [
            {
                 "role": "system",
-                "content":self.role,
+                "content":system_role if system_role else self.role,
            },
            {
                 "role": "user",
@@ -495,24 +501,175 @@ class KimiBot:
         return res
 
     def test_response(self,prompt_string,temperature=0.5):
-         messages = self.get_messages(prompt_string)
-         completion = self.client.chat.completions.create(
+        messages = self.get_messages(prompt_string)
+        completion = self.client.chat.completions.create(
              model = self.model,
              messages = messages,
              temperature = temperature,
         )
-         res = completion.choices[0].message.content
-         print('发送Prompt：',messages)
-         print('Kimi回复：',res)
-         return res
+        res = completion.choices[0].message.content
+        print('发送Prompt：',messages)
+        print('Kimi回复：',res)
+        return res
+
+    
+
+    def self_value_response(self, **kwargs):
+        print('SELF VALUE KWARGS:', kwargs)
+        min_round = 5
+        max_round = 8
+        round_num = kwargs.get("round", 1)
+        stage = kwargs.get("stage", "")
+        self_value_role = """
+        你是一位擅长通过连续追问帮助用户识别自我价值线索的引导者。
+        你的目标不是营销，不是商业分析，不是品牌定位。
+        你只关注用户个人在价值感、身份感、方向感上的真实状态。
+        """
+
+        '''
+        # 先处理结束阶段：生成正式报告
+        if round_num >= 3 and stage != "finish":
+            print("SELF VALUE: 开始生成正式报告")
+
+            draft_kwargs = dict(kwargs)
+            #finish_kwargs["stage"] = "finish"
+
+            rendered_template = ps.prompt_draft_report.format(**draft_kwargs)
+            use_dict = False
+
+            messages = self.get_messages(rendered_template, use_dict,system_role=self_value_role)
+
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=1.2,
+            )
+
+            report = response.choices[0].message.content
+            print("SELF VALUE 阶段性报告内容：", report)
+
+            return {
+                "mode": "draft_report",
+                "report": report,
+                "should_end":False
+            }
+
+        '''
+        # 普通提问阶段
+        ask_kwargs = dict(kwargs)
+        ask_kwargs.setdefault("round",1)
+        ask_kwargs.setdefault("answer","")
+        rendered_template = ps.prompt_ask.format(**ask_kwargs)
+        use_dict = False
+
+        messages = self.get_messages(rendered_template, use_dict,system_role=self_value_role)
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=1.5,
+        )
+
+        res = response.choices[0].message.content
+
+        print("SELF VALUE 返回内容：", res)
+
+        import json
+
+        try:
+            res_json = json.loads(res)
+        except Exception as e:
+            print("ASK JSON解析失败:", e)
+            return res
+
+        mode = res_json.get("mode")
+        # 5轮之前，禁止进入阶段性答案，只能继续提问
+        if round_num < min_round:
+            if mode == "draft_report":
+                print(f"SELF VALUE:当前round={round_num},未到最小轮次，强制继续提问")
+                res_json["mode"] = "ask"
+                res_json["should_end"]=False
+                
+                if "question" not in res_json:
+                    res_json["question"]="请继续沿着刚才最有感觉的地方往下说说。"
+                if "type" not in res_json:
+                    res_json["type"] = "text"
+                if "options" not in res_json:
+                    res_json["options"] = []
+
+            return res_json
+
+        # 5~8轮：允许模型自己决定ask或draft_report
+        if min_round <= round_num <= max_round:
+          if mode == "ask":
+              return res_json
+          if mode == "draft_report":
+              print(f"SELF VALUE:round={round_num}.AI决定进入阶段性答案")
+              draft_kwargs = dict(kwargs)
+              draft_kwargs.setdefault("answer","")
+              rendered_template = ps.prompt_draft_report.format(**draft_kwargs)
+              use_dict = False
+
+              messages = self.get_messages(
+                rendered_template,
+                use_dict,
+                system_role=self_value_role
+              )
+
+              response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=1.2,
+              )
+
+              report = response.choices[0].message.content
+
+              return {
+                "mode": "draft_report",
+                "report": report,
+                "should_end": False
+             }
+
+          # 如果出现异常模式
+          print("未知mode:", mode)
+          return res_json
+          
+        #超过最大轮次，无论模型返回ask还是draft_report,都强制生成阶段报告
+        if round_num > max_round:
+            print(f"SELF VALUE:round={round_num}.超过最大轮次，强制进入阶段性答案")
+            draft_kwargs = dict(kwargs)
+            draft_kwargs.setdefault("answer","")
+
+            rendered_template = ps.prompt_draft_report.format(**draft_kwargs)
+            use_dict = False
+
+            messages = self.get_messages(
+              rendered_template,
+              use_dict,
+              system_role=self_value_role
+                )
+              
+            response = self.client.chat.completions.create(
+              model = self.model,
+              messages = messages,
+              temperature =1.2,
+                )
+
+            report = response.choices[0].message.content
+            return {
+                "mode":"draft_report",
+                "report":report,
+                "should_end":False
+                }
+        return res_json
 
 #调动文件
 '''
 file_object = client.files.create(file=Path("/Users/wangjohnson/downloads/WechatIMG1445.jpg"), purpose="file-extract")
 
 file_content = client.files.content(file_id=file_object.id).text
-'''
-'''
+
+
 import prompt_advice_original
 
 if __name__ == '__main__':

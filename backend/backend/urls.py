@@ -22,4 +22,5 @@ urlpatterns = [
     path('api/',include('llmapi.urls')),
     path('account/',include('account.urls')),
     path('marketing/',include('marketing.urls')),
+    path('api/selfvalue/', include('selfvalue.urls')),
 ]

@@ -5,42 +5,43 @@ from rest_framework import status
 from . import kimi_api
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
-from django.http import JsonResponse, StreamingHttpResponse
-import json
-import re
+from django.http.response import JsonResponse
+import json, re
+from django.http import JsonResponse
 from . import test
 from .self_value_bot import SelfValueBot
 
 kimi_bot = kimi_api.KimiBot()
-self_value_bot = SelfValueBot(client=kimi_bot.client, model=kimi_bot.model)
-
+self_value_bot = SelfValueBot(client=kimi_bot.client,model=kimi_bot.model)
 
 class SimpleAPIView(APIView):
+    #@csrf_exempt
     def get(self, request, *args, **kwargs):
+        # 返回一个字符串的响应
         message = kimi_bot.response()
-        response = Response({"message": message}, status=status.HTTP_200_OK)
+        response = Response({"message":message}, status=status.HTTP_200_OK)
+        #response['Access-Control-Allow-Origin'] = 'http://localhost:8089'
         return response
 
-    def post(self, request):
+    #@api_view(['POST'])
+    def post(self,request):
         print('接收到数据....')
-        form_data = request.data
+        form_data = request.data   # request.data 中包含了传送过来的 formData
         print(form_data)
         message = kimi_bot.response(**form_data)
-        response = Response({"message": message}, status=status.HTTP_200_OK)
+        response = Response({"message":message}, status=status.HTTP_200_OK) 
         return response
-
 
 @csrf_exempt
 def format_prompt(request):
     if request.method == 'POST':
-        print('REQUEST：', request.body)
-        data = json.loads(request.body.decode('utf-8'))
-        print('接收到的信息：', data)
+        print('REQUEST：',request.body);
+        data = json.loads(request.body.decode('utf-8'))  # 解析JSON数据
+        print('接收到的信息：',data)
+        
+        #messages = data['_value']
         res = kimi_bot.response(**data)
-        return JsonResponse(res, safe=False)
-
-    return JsonResponse({"error": "Only POST method is allowed."}, status=405)
-
+    return JsonResponse(res,safe=False)
 
 @csrf_exempt
 def get_advice(request):
@@ -60,6 +61,7 @@ def get_advice(request):
         body_text = request.body.decode('utf-8').strip()
         if not body_text:
             return JsonResponse({"error": "Empty request body."}, status=400)
+
         data = json.loads(body_text)
     except json.JSONDecodeError as e:
         return JsonResponse({"error": f"Invalid JSON: {e}"}, status=400)
@@ -86,126 +88,93 @@ def get_advice(request):
         try:
             res = json.loads(json_string)
         except json.JSONDecodeError as e:
-            print(f"json解析错误: {e}")
+            print(f"json解析错误:{e}")
             fixed_json_string = re.sub(r'(?<!\\)"(.*?)"', r'"\1"', json_string)
             try:
                 res = json.loads(fixed_json_string)
             except json.JSONDecodeError as e:
-                return JsonResponse({"error": f"JSON解析错误: {e}"}, status=400)
+                return JsonResponse({"error": f"JSON解析错误:{e}"}, status=400)
 
     else:
         return JsonResponse({"error": "Unsupported response type."}, status=400)
 
     final_response = JsonResponse(res, safe=False)
     final_response["Access-Control-Allow-Origin"] = "http://localhost:8082"
-    return final_response
-
-
-@csrf_exempt
-def get_advice_stream(request):
-    if request.method == 'OPTIONS':
-        response = JsonResponse({}, status=200)
-        response["Access-Control-Allow-Origin"] = "http://localhost:8082"
-        response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-        response["Access-Control-Allow-Headers"] = "Content-Type"
-        return response
-
-    if request.method != 'POST':
-        return JsonResponse({"error": "Only POST method is allowed."}, status=405)
-
-    try:
-        body_text = request.body.decode('utf-8').strip()
-        if not body_text:
-            return JsonResponse({"error": "Empty request body."}, status=400)
-        data = json.loads(body_text)
-    except json.JSONDecodeError as e:
-        return JsonResponse({"error": f"Invalid JSON: {e}"}, status=400)
-
-    if data.get('type') != 'self_value':
-        return JsonResponse(
-            {"error": "Streaming only supports self_value for now."},
-            status=400
-        )
-
-    def event_stream():
-        for item in self_value_bot.self_value_stream(**data):
-            yield json.dumps(item, ensure_ascii=False) + "\n"
-
-    response = StreamingHttpResponse(
-        event_stream(),
-        content_type="application/x-ndjson; charset=utf-8"
-    )
-    response["Access-Control-Allow-Origin"] = "http://localhost:8082"
-    response["Cache-Control"] = "no-cache"
-    response["X-Accel-Buffering"] = "no"
-    return response
-
-
+    return final_response        
+        
 def format_data(raw_data):
-    print('Raw_Data:', raw_data)
-    task_sections = re.findall(
-        r'\*\*(.*?)\*\*\s*\(\[\#(.*?)\#\]\)\s*\n(.+?)(?=\n\n\*\*|\n\n###|\Z)',
-        raw_data,
-        re.DOTALL
-    )
-
+    print('Raw_Data:',raw_data)
+    task_sections = re.findall(r'\*\*(.*?)\*\*\s*\(\[\#(.*?)\#\]\)\s*\n(.+?)(?=\n\n\*\*|\n\n###|\Z)', raw_data, re.DOTALL)
+    
     formatted_data = {}
     for section in task_sections:
         title, key, content = section
-        content_clean = re.sub(r'\n+', ' ', content.strip())
+        content_clean = re.sub(r'\n+', ' ', content.strip())  # 日程重复换行替换为一个空格。
         formatted_data[key] = {'title': title, 'content': content_clean}
 
-    advices = re.findall(
-        r'\*\*(\d+\..*?)\*\*\n   - (.+?)(?=\n\n\*\*|\n\n###|\Z)',
-        raw_data,
-        re.DOTALL
-    )
-    print("Advices:", advices)
+    advices = re.findall(r'\*\*(\d+\..*?)\*\*\n   - (.+?)(?=\n\n\*\*|\n\n###|\Z)', raw_data, re.DOTALL)
+    print("Advices:",advices)
     advices_list = [{'index': advice[0], 'content': advice[1].strip()} for advice in advices]
-    print("advices_list:", advices_list)
+    print("advices_list:",advices_list)
     formatted_data['advices'] = advices_list
-    print('formatted_data:', formatted_data)
-
+    print('formatted_data:',formatted_data) 
+    '''
+    if 'emotions' in formatted_data:
+        emotions_content = formatted_data['emotions']['content']
+        emotions_list = re.split(r'，|,|\s+和\s+', emotions_content)
+        formatted_data['emotions']['content'] = [emotion.strip() for emotion in emotions_list if emotion]
+    '''
     return JsonResponse(formatted_data)
 
 
+
 def extract_information(raw_data):
+    # 匹配每一个段落标题和内容
     pattern = r'#### (.*?)\(\[\#(.*?)\#\]\)\n(.*?)\n\n'
     matches = re.findall(pattern, raw_data, re.DOTALL)
 
+    # 初始信息字典
     information = {}
 
+    # 将匹配项以键值对的形式存入信息字典
     for match in matches:
         key = match[1]
+        # 对于 'product_usp' 和 'brand_value' 分条列出
         if key in ['product_usp', 'brand_value']:
             value = [v.strip() for v in match[2].split('\n') if v.strip()]
         else:
             value = match[2].strip().replace('\n', ' ')
         information[key] = value
 
+    # 获取 advices 部分
     advices_pattern = r'\n(\d+\.\s*\*\*(.*?)\*\*)\n\s*-\s*\*\*(.*?)\*\*:(.*?)\n'
     advice_matches = re.findall(advices_pattern, raw_data, re.DOTALL)
-    advices = [
-        {
-            'index': m[0].strip(),
-            'title': m[1].strip(),
-            'issue': m[2].strip(),
-            'suggestion': m[3].strip().replace('\n', ' ')
-        }
-        for m in advice_matches
-    ]
+    advices = [{'index': m[0].strip(),
+                'title': m[1].strip(),
+                'issue': m[2].strip(),
+                'suggestion': m[3].strip().replace('\n', ' ')}
+               for m in advice_matches]
 
     information['advices'] = advices
 
+    # 对于 'emotions' 需要分隔为数组
     if 'emotions' in information:
         emotions_content = information['emotions']
-        information['emotions'] = [
-            e.strip() for e in re.split(r'、|,', emotions_content) if e.strip()
-        ]
+        information['emotions'] = [e.strip() for e in re.split(r'、|,', emotions_content) if e.strip()]
 
     return information
+
 
 
 @csrf_exempt
 def test_response(request):
     test.process_request(request)
+    '''
+    if request.method=='POST':
+        print('REQUEST：',request.body);
+        data = json.loads(request.body.decode('utf-8'))  # 解析JSON数据
+        print('接收到的信息：',data)
+        
+        res = json.dumps(data)
+    return JsonResponse(res,safe=False)
+    '''
