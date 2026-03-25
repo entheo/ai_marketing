@@ -22,10 +22,11 @@ const routes = [
     component: DashboardPage,
     meta: { requiresAuth: true },
     children: [
-      {
+      
+      /*{
         path: '',
         redirect: '/dashboard/questions'
-      },
+      },*/
       {
         path: 'questions',
         name: 'DashboardQuestions',
