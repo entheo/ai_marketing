@@ -185,8 +185,30 @@ export default {
       playbackAccumulator: 0
     }
   },
+  
+
+  computed: {
+  prefetchedFirstQuestion() {
+    return this.$store.state.first_question_data
+  },
+  prefetchedFirstQuestionReady() {
+    return this.$store.state.first_question_ready
+  },
+  prefetchedFirstQuestionLoading() {
+    return this.$store.state.first_question_loading
+  }
+},
 
   methods: {
+
+    applyFirstQuestion(data) {
+  this.interactionMode = 'ask'
+  this.currentQuestion = data.question || '未返回问题内容'
+  this.questionType = this.normalizeQuestionType(data.question_type)
+  this.questionOptions = Array.isArray(data.options) ? data.options : []
+  this.questionRenderKey += 1
+},
+
     goBack() {
       if (this.submitting) return
       this.$router.back()
@@ -602,10 +624,19 @@ export default {
     }
   },
 
-  mounted() {
+  /*mounted() {
     this.tickQuestionPlayback = this.tickQuestionPlayback.bind(this)
     this.fetchFirstQuestion()
-  }
+  }*/
+
+  mounted() {
+      if (this.prefetchedFirstQuestionReady && this.prefetchedFirstQuestion) {
+          this.applyFirstQuestion(this.prefetchedFirstQuestion)
+          this.$store.commit('reset_first_question')
+          return
+          }
+      this.fetchFirstQuestion()
+      },
 }
 </script>
 
