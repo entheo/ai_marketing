@@ -14,6 +14,9 @@ export default createStore({
     user: localStorage.getItem('username') || '',
     temp_campaign_data: {},
     self_value_report: '',
+    first_question_loading:false,
+    first_question_ready:false,
+    first_question_data:null,
   },
 
   mutations: {
@@ -33,6 +36,23 @@ export default createStore({
     set_self_value_report(state, report) {
       state.self_value_report = report
     },
+    set_first_question_loading(state, loading) {
+        state.first_question_loading = loading
+        },
+
+    set_first_question_ready(state, ready) {
+        state.first_question_ready = ready
+        },
+    
+    set_first_question_data(state, question) {
+        state.first_question_data = question
+        },
+    
+    reset_first_question(state) {
+        state.first_question_loading = false
+        state.first_question_ready = false
+        state.first_question_data = null
+        },
   },
 
   actions: {
@@ -115,6 +135,50 @@ checkAuth({ commit, state }) {
   })
 },
 
+prefetchFirstQuestion({ commit, state }) {
+  if (state.first_question_ready && state.first_question_data) {
+    return Promise.resolve(state.first_question_data)
+  }
+
+  if (state.first_question_loading) {
+    return new Promise((resolve) => {
+      const timer = setInterval(() => {
+        if (state.first_question_ready && state.first_question_data) {
+          clearInterval(timer)
+          resolve(state.first_question_data)
+        }
+      }, 50)
+    })
+  }
+
+  commit('set_first_question_loading', true)
+
+  return fetch('http://127.0.0.1:8002/api/advice/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      type: 'self_value',
+      mode: 'self_value',
+      stage: 'start'
+    })
+  })
+    .then(async (response) => {
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || '请求失败')
+      }
+
+      commit('set_first_question_data', data)
+      commit('set_first_question_ready', true)
+      return data
+    })
+    .finally(() => {
+      commit('set_first_question_loading', false)
+    })
+},
   },
 
   getters: {
@@ -122,5 +186,8 @@ checkAuth({ commit, state }) {
     authStatus: state => state.status,
     temp_campaign_data: state => state.temp_campaign_data,
     self_value_report: state => state.self_value_report,
+    first_question_loading: state => state.first_question_loading,
+    first_question_ready: state => state.first_question_ready,
+    first_question_data: state => state.first_question_data,
   }
 })

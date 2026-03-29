@@ -31,8 +31,6 @@ class PromptRunner:
     统一 Prompt 执行器
     """
 
-    SUMMARY_LIKE_STATUS = ("stage_summary", "final_report", "action_plan", "draft_report")
-
     def __init__(self, client=None, model=None):
         """
         初始化执行器
@@ -208,77 +206,13 @@ class PromptRunner:
 
         return result
 
-    def _is_manual_summary_stage(self, context: Dict[str, Any]) -> bool:
-        stage = str(context.get("stage", "") or "").strip().lower()
-        return stage in ("summarize", "summary", "draft_report", "manual_summary")
-
-    def _looks_like_stuck_answer(self, text: str) -> bool:
-        """
-        判断用户当前回答是否明显卡住。
-        """
-        value = str(text or "").strip().lower()
-        if not value:
-            return False
-
-        stuck_phrases = [
-            "不知道",
-            "不清楚",
-            "说不上来",
-            "想不到",
-            "没想法",
-            "没有了",
-            "没了",
-            "不确定",
-            "卡住了",
-            "答不上来",
-            "没什么",
-            "随便",
-            "不太知道",
-            "不好说",
-            "不知道了",
-        ]
-
-        # 超短回答且属于常见卡住表达
-        if value in stuck_phrases:
-            return True
-
-        if any(phrase in value for phrase in stuck_phrases):
-            return True
-
-        return False
-
-    def _is_user_stuck(self, context: Dict[str, Any]) -> bool:
-        """
-        判断当前用户是否处在明显受阻状态。
-        规则：
-        1. 当前 answer 明显卡住
-        2. 或 qa_history 最后一条回答明显卡住
-        """
-        current_answer = str(context.get("answer", "") or "").strip()
-        if self._looks_like_stuck_answer(current_answer):
-            return True
-
-        qa_history = context.get("qa_history", []) or []
-        if isinstance(qa_history, list) and qa_history:
-            last_item = qa_history[-1] or {}
-            last_answer = str(last_item.get("answer", "") or "").strip()
-            if self._looks_like_stuck_answer(last_answer):
-                return True
-
-        return False
-
     def _build_checkpoint_ask(self, question: str, round_num: int) -> Dict[str, Any]:
         """
-        最后兜底用：
-        当模型无法给出合适追问时，保留一个温和的继续入口。
-        注意：这不再是主路径。
+        把“该进入阶段整理”的结果，转成“继续提问 + 可整理按钮”的结构。
         """
         safe_question = (question or "").strip()
         if not safe_question:
-            if round_num >= self.min_summary_round:
-                safe_question = "要不要换个更具体的角度说一小段？"
-            else:
-                safe_question = "刚才哪一处最接近你真实的感觉？"
+            safe_question = "如果继续往里走，你最想再补充哪一层自己还没说透的东西？"
 
         safe_question = safe_question.replace("\n", "").replace("\r", "")
         safe_question = self._trim_question_if_needed(safe_question)
@@ -296,168 +230,56 @@ class PromptRunner:
             "can_summarize": round_num >= self.min_summary_round,
         }
 
-    def _rewrite_summary_to_followup_question(
-        self,
-        adapter: PromptAdapter,
-        summary_like_result: Dict[str, Any],
-        context: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        """
-        当模型想总结、但当前阶段还不准备直接总结时，
-        不再用固定模板硬拦，而是要求模型换一个角度继续问。
-        """
-        if self.client is None or self.model is None:
-            return {}
-
-        round_num = self._safe_round(context)
-        is_stuck = self._is_user_stuck(context)
-
-        stuck_instruction = (
-            "用户刚刚明显卡住了。不要重复深挖“还没说透的部分”。"
-            "请换一个更具体、更低门槛、更生活化的角度继续问。"
-            "优先场景、例子、最近一次经历，必要时可改成 single_choice。"
-            if is_stuck
-            else
-            "不要直接总结。请保留当前探索方向，但换一个角度继续问。"
-            "新问题不能与上一问同构，不能只是改写原话。"
-        )
-
-        rewrite_prompt = f"""
-你将收到一个本来适合做阶段整理的结果。
-但当前产品策略是：现在先不直接总结，而是继续问一个新的问题。
-
-你的任务：
-把“想总结”的倾向，改写成一个新的 follow-up question，
-用于继续引导用户，但不能僵硬、不能重复、不能使用固定模板。
-
-当前上下文：
-- mode: {context.get("mode", "")}
-- stage: {context.get("stage", "")}
-- round: {context.get("round", 1)}
-- answer: {context.get("answer", "")}
-- qa_history: {context.get("qa_history", [])}
-
-模型原本的结果：
-{json.dumps(summary_like_result, ensure_ascii=False)}
-
-改写要求：
-1. 只输出一个合法 JSON 对象
-2. status 只能是 ask 或 clarify
-3. question_type 只能是 text 或 single_choice
-4. 如果输出 single_choice，必须提供至少 2 个选项
-5. 问题必须单句、不得换行、不得复合提问
-6. 问题优先控制在 18~28 个中文字符，极限不超过 36 个
-7. 不允许重复以下类型的抽象追问：
-   - 你还有什么没说透
-   - 如果继续往里走
-   - 你最想再补充什么
-8. {stuck_instruction}
-9. 如果当前更适合停一下，也不要直接总结；而是问一个低压力、容易回答的小问题
-10. can_summarize:
-   - 如果 round >= {self.min_summary_round}，可设为 true
-   - 否则必须为 false
-11. 不要输出 null，不要输出 markdown 代码块
-
-请直接输出最终 JSON。
-""".strip()
-
-        messages = self.get_messages(rewrite_prompt)
-
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=0.6,
-            )
-            raw_content = response.choices[0].message.content
-            rewritten = self._parse_json(raw_content)
-            rewritten = self._normalize_result(rewritten)
-            rewritten = self._repair_shape(rewritten)
-
-            is_valid, validated_data, _ = adapter.basic_validate_response(
-                json.dumps(rewritten, ensure_ascii=False)
-            )
-            if is_valid and validated_data.get("status") in ("ask", "clarify"):
-                return self._normalize_result(validated_data)
-
-            return {}
-        except Exception:
-            return {}
-
     def _apply_guardrails(self, result: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
         """
         应用轻度流程护栏。
 
-        新原则：
-        1. summarize 阶段允许 summary / report 正常通过
-        2. 正常 continue 阶段里，不再把“想总结”直接强改成固定追问
-        3. can_summarize 主要用于控制按钮，而不是替代模型发问
+        新规则：
+        1. 正常 continue 流程里，不再直接把结果切成 stage_summary / final_report
+        2. 模型如果觉得“现在适合整理”，转成：
+           ask + can_summarize = true
+        3. 真正进入阶段整理，只在 stage = summarize 时允许
         """
         round_num = self._safe_round(context)
         status = result.get("status", "")
+        stage = str(context.get("stage", "") or "").strip().lower()
 
-        if self._is_manual_summary_stage(context):
+        is_manual_summary_stage = stage in ("summarize", "summary", "draft_report", "manual_summary")
+
+        # 手动总结阶段：允许 summary / report 类状态正常通过
+        if is_manual_summary_stage:
             result["can_summarize"] = False
             return result
 
-        # 太早：不允许出现整理按钮
+        # 早期阶段：不允许太早出现“可整理”
         if round_num < self.min_summary_round:
+            if status in ("stage_summary", "final_report", "action_plan", "draft_report"):
+                return self._build_checkpoint_ask(
+                    "请继续沿着刚才最有感觉、最有分量的那部分往下说。",
+                    round_num=round_num,
+                )
+
             if status in ("ask", "clarify"):
                 result["can_summarize"] = False
             return result
 
-        # 进入中后段：
-        # ask / clarify 可以自然带 summarize 按钮
+        # 正常问答阶段：
+        # 如果模型直接给了阶段整理结果，不再强跳，转成 ask + can_summarize=true
+        if status in ("stage_summary", "final_report", "action_plan", "draft_report"):
+            fallback_question = result.get("question", "") or "如果继续往里走，你最想再补充哪一层自己还没说透的东西？"
+            return self._build_checkpoint_ask(
+                question=fallback_question,
+                round_num=round_num,
+            )
+
+        # 轮数较深：即使模型继续 ask，也可以允许出现“先整理一下”按钮
         if status in ("ask", "clarify"):
             if round_num >= self.force_summary_round:
                 result["can_summarize"] = True
             else:
                 result["can_summarize"] = bool(result.get("can_summarize", False))
-            return result
-
-        # summary-like 状态在这里先不硬改，交给后续专门逻辑处理
-        if status in self.SUMMARY_LIKE_STATUS:
-            result["can_summarize"] = False
-            return result
 
         return result
-
-    def _convert_summary_like_result_if_needed(
-        self,
-        result: Dict[str, Any],
-        context: Dict[str, Any],
-        adapter: PromptAdapter,
-    ) -> Dict[str, Any]:
-        """
-        只在正常 continue 流程里处理“模型想总结，但当前不直接总结”的情况。
-        优先让模型二次改问，最后才兜底。
-        """
-        status = result.get("status", "")
-        round_num = self._safe_round(context)
-
-        if self._is_manual_summary_stage(context):
-            return result
-
-        if status not in self.SUMMARY_LIKE_STATUS:
-            return result
-
-        # 太早也不直接进总结，优先让模型重问
-        rewritten = self._rewrite_summary_to_followup_question(
-            adapter=adapter,
-            summary_like_result=result,
-            context=context,
-        )
-        if rewritten:
-            rewritten = self._normalize_result(rewritten)
-            rewritten = self._repair_shape(rewritten)
-            rewritten["can_summarize"] = round_num >= self.min_summary_round
-            return rewritten
-
-        # 最后兜底：只在重写失败时使用
-        return self._build_checkpoint_ask(
-            question="",
-            round_num=round_num,
-        )
 
     def _basic_validate_response(self, result: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -586,18 +408,11 @@ class PromptRunner:
     def _finalize_result(self, result: Dict[str, Any], context: Dict[str, Any], adapter: PromptAdapter) -> Dict[str, Any]:
         """
         统一整理最终结果：
-        normalize -> repair -> guardrails -> summary-like conversion -> validate -> 必要时 rewrite
+        normalize -> repair -> guardrails -> validate -> 必要时 rewrite
         """
         result = self._normalize_result(result)
         result = self._repair_shape(result)
         result = self._apply_guardrails(result, context)
-
-        result = self._convert_summary_like_result_if_needed(
-            result=result,
-            context=context,
-            adapter=adapter,
-        )
-
         result = self._normalize_result(result)
         result = self._repair_shape(result)
         result = self._basic_validate_response(result)

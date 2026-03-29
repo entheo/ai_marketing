@@ -8,16 +8,10 @@
       </div>
     </aside>
 
+    <main class="dashboard-main">
+      <router-view />
+    </main>
 
-    
-   <main class="dashboard-main">
-     <SelfValueIntro
-       v-if="$route.path === '/dashboard'"
-       @start="startQuestions"
-     />
-     <router-view v-else />
-   </main> 
-    
     <transition name="drawer-fade">
       <div
         v-if="menuOpen"
@@ -62,9 +56,9 @@
         <div class="drawer-nav-list">
           <button
             class="drawer-nav"
-            :class="{'drawer-nav--active':isSelfValueActive()}"
+            :class="{ 'drawer-nav--active': isActive('/dashboard/questions') }"
             type="button"
-            @click="openAndGo('/dashboard')"
+            @click="openAndGo('/dashboard/questions')"
           >
             认识自己
           </button>
@@ -124,14 +118,12 @@
 
 <script>
 import { NModal } from 'naive-ui'
-import SelfValueIntro from './SelfValueIntro.vue'
 
 export default {
   name: 'DashboardPage',
- 
+
   components: {
-    NModal,
-    SelfValueIntro
+    NModal
   },
 
   data() {
@@ -148,15 +140,6 @@ export default {
   },
 
   methods: {
-
-    startQuestions(){
-        this.$router.push('/dashboard/questions')
-        },  
-    
-    isSelfValueActive() {
-        return this.$route.path === '/dashboard' || this.$route.path === '/dashboard/questions'
-        },
-
     openAndGo(path) {
       this.menuOpen = false
       this.$router.push(path)

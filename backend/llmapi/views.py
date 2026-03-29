@@ -4,15 +4,42 @@ from rest_framework.response import Response
 from rest_framework import status
 from . import kimi_api
 from django.views.decorators.csrf import csrf_exempt
-from rest_framework.decorators import api_view
 from django.http import JsonResponse, StreamingHttpResponse
 import json
-import re
 from . import test
 from .self_value_bot import SelfValueBot
 
+FRONTEND_ORIGIN = "http://localhost:8082"
+
 kimi_bot = kimi_api.KimiBot()
 self_value_bot = SelfValueBot(client=kimi_bot.client, model=kimi_bot.model)
+
+
+def _build_cors_response(payload=None, status_code=200):
+    response = JsonResponse(payload or {}, status=status_code, safe=isinstance(payload, dict) is False)
+    response["Access-Control-Allow-Origin"] = FRONTEND_ORIGIN
+    response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    response["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
+
+
+def _handle_options_request():
+    response = JsonResponse({}, status=200)
+    response["Access-Control-Allow-Origin"] = FRONTEND_ORIGIN
+    response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    response["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
+
+
+def _parse_request_json(request):
+    try:
+        body_text = request.body.decode("utf-8").strip()
+        if not body_text:
+            return None, JsonResponse({"error": "Empty request body."}, status=400)
+        data = json.loads(body_text)
+        return data, None
+    except json.JSONDecodeError as e:
+        return None, JsonResponse({"error": f"Invalid JSON: {e}"}, status=400)
 
 
 class SimpleAPIView(APIView):
@@ -22,9 +49,7 @@ class SimpleAPIView(APIView):
         return response
 
     def post(self, request):
-        print('接收到数据....')
         form_data = request.data
-        print(form_data)
         message = kimi_bot.response(**form_data)
         response = Response({"message": message}, status=status.HTTP_200_OK)
         return response
@@ -32,10 +57,11 @@ class SimpleAPIView(APIView):
 
 @csrf_exempt
 def format_prompt(request):
-    if request.method == 'POST':
-        print('REQUEST：', request.body)
-        data = json.loads(request.body.decode('utf-8'))
-        print('接收到的信息：', data)
+    if request.method == "POST":
+        data, error_response = _parse_request_json(request)
+        if error_response:
+            return error_response
+
         res = kimi_bot.response(**data)
         return JsonResponse(res, safe=False)
 
@@ -44,98 +70,198 @@ def format_prompt(request):
 
 @csrf_exempt
 def get_advice(request):
-    if request.method == 'OPTIONS':
-        response = JsonResponse({}, status=200)
-        response["Access-Control-Allow-Origin"] = "http://localhost:8082"
-        response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-        response["Access-Control-Allow-Headers"] = "Content-Type"
-        return response
+    """
+    主问答接口
+    - 非 self_value: 走原 kimi_bot.response
+    - self_value: 直接返回前端可消费结构
+      {
+        "message": {...},
+        "stage": {...},
+        "meta": {...}
+      }
+    """
+    if request.method == "OPTIONS":
+        return _handle_options_request()
 
-    if request.method != 'POST':
+    if request.method != "POST":
         return JsonResponse({"error": "Only POST method is allowed."}, status=405)
 
-    print('请求到达Django后端：', request.body)
+    data, error_response = _parse_request_json(request)
+    if error_response:
+        return error_response
 
     try:
-        body_text = request.body.decode('utf-8').strip()
-        if not body_text:
-            return JsonResponse({"error": "Empty request body."}, status=400)
-        data = json.loads(body_text)
-    except json.JSONDecodeError as e:
-        return JsonResponse({"error": f"Invalid JSON: {e}"}, status=400)
+        if data.get("type") == "self_value":
+            result = self_value_bot.self_value_frontend_response(**data)
 
-    print('RECEIVED DATA:', data)
-
-    if data.get('type') == 'self_value':
-        response = self_value_bot.self_value_response(**data)
-    else:
-        response = kimi_bot.response(**data)
-
-    print('建议的数据类型:', type(response))
-    print('已获得建议:', response)
-
-    if isinstance(response, dict):
-        res = response
-
-    elif isinstance(response, str):
-        if response.startswith("```json") and response.endswith("```"):
-            json_string = response[7:-3].strip()
+            if not isinstance(result, dict):
+                return JsonResponse(
+                    {"error": "SelfValueBot must return a dict response."},
+                    status=500
+                )
         else:
-            json_string = response
+            result = kimi_bot.response(**data)
 
-        try:
-            res = json.loads(json_string)
-        except json.JSONDecodeError as e:
-            print(f"json解析错误: {e}")
-            fixed_json_string = re.sub(r'(?<!\\)"(.*?)"', r'"\1"', json_string)
-            try:
-                res = json.loads(fixed_json_string)
-            except json.JSONDecodeError as e:
-                return JsonResponse({"error": f"JSON解析错误: {e}"}, status=400)
+        return _build_cors_response(result, status_code=200)
 
-    else:
-        return JsonResponse({"error": "Unsupported response type."}, status=400)
+    except Exception as e:
+        response = JsonResponse({"error": f"Backend error: {str(e)}"}, status=500)
+        response["Access-Control-Allow-Origin"] = FRONTEND_ORIGIN
+        return response
 
-    final_response = JsonResponse(res, safe=False)
-    final_response["Access-Control-Allow-Origin"] = "http://localhost:8082"
-    return final_response
+
+@csrf_exempt
+def apply_stage_feedback(request):
+    """
+    右侧轻确认反馈接口
+
+    期望入参：
+    {
+      "type": "self_value",
+      "conversation_id": "conv_xxx",
+      "stage_state": {...},
+      "candidate_id": "c_xxx",
+      "action": "confirmed" | "rejected" | "revised",
+      "user_note": "可选"
+    }
+
+    返回：
+    {
+      "stage": {...},
+      "meta": {...}
+    }
+    """
+    if request.method == "OPTIONS":
+        return _handle_options_request()
+
+    if request.method != "POST":
+        return JsonResponse({"error": "Only POST method is allowed."}, status=405)
+
+    data, error_response = _parse_request_json(request)
+    if error_response:
+        return error_response
+
+    if data.get("type") != "self_value":
+        return JsonResponse(
+            {"error": "apply_stage_feedback only supports self_value."},
+            status=400
+        )
+
+    candidate_id = data.get("candidate_id", "")
+    action = data.get("action", "")
+    user_note = data.get("user_note", "")
+
+    if not candidate_id:
+        return JsonResponse({"error": "candidate_id is required."}, status=400)
+
+    if action not in ("confirmed", "rejected", "revised"):
+        return JsonResponse(
+            {"error": "action must be one of: confirmed, rejected, revised."},
+            status=400
+        )
+
+    try:
+        result = self_value_bot.apply_stage_feedback_frontend(
+            candidate_id=candidate_id,
+            action=action,
+            user_note=user_note,
+            **data,
+        )
+        return _build_cors_response(result, status_code=200)
+
+    except Exception as e:
+        response = JsonResponse({"error": f"Backend error: {str(e)}"}, status=500)
+        response["Access-Control-Allow-Origin"] = FRONTEND_ORIGIN
+        return response
+
+
+@csrf_exempt
+def try_stage_transition(request):
+    """
+    阶段切换接口
+
+    期望入参：
+    {
+      "type": "self_value",
+      "conversation_id": "conv_xxx",
+      "stage_state": {...}
+    }
+
+    返回：
+    {
+      "stage": {...},
+      "meta": {...}
+    }
+    """
+    if request.method == "OPTIONS":
+        return _handle_options_request()
+
+    if request.method != "POST":
+        return JsonResponse({"error": "Only POST method is allowed."}, status=405)
+
+    data, error_response = _parse_request_json(request)
+    if error_response:
+        return error_response
+
+    if data.get("type") != "self_value":
+        return JsonResponse(
+            {"error": "try_stage_transition only supports self_value."},
+            status=400
+        )
+
+    try:
+        result = self_value_bot.try_stage_transition_frontend(**data)
+        return _build_cors_response(result, status_code=200)
+
+    except Exception as e:
+        response = JsonResponse({"error": f"Backend error: {str(e)}"}, status=500)
+        response["Access-Control-Allow-Origin"] = FRONTEND_ORIGIN
+        return response
 
 
 @csrf_exempt
 def get_advice_stream(request):
-    if request.method == 'OPTIONS':
-        response = JsonResponse({}, status=200)
-        response["Access-Control-Allow-Origin"] = "http://localhost:8082"
-        response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-        response["Access-Control-Allow-Headers"] = "Content-Type"
-        return response
+    """
+    流式问答接口
 
-    if request.method != 'POST':
+    仅支持 self_value。
+    事件协议：
+    - message_chunk
+    - message_done
+    - stage_done
+    - error
+    """
+    if request.method == "OPTIONS":
+        return _handle_options_request()
+
+    if request.method != "POST":
         return JsonResponse({"error": "Only POST method is allowed."}, status=405)
 
-    try:
-        body_text = request.body.decode('utf-8').strip()
-        if not body_text:
-            return JsonResponse({"error": "Empty request body."}, status=400)
-        data = json.loads(body_text)
-    except json.JSONDecodeError as e:
-        return JsonResponse({"error": f"Invalid JSON: {e}"}, status=400)
+    data, error_response = _parse_request_json(request)
+    if error_response:
+        return error_response
 
-    if data.get('type') != 'self_value':
+    if data.get("type") != "self_value":
         return JsonResponse(
             {"error": "Streaming only supports self_value for now."},
             status=400
         )
 
     def event_stream():
-        for item in self_value_bot.self_value_stream(**data):
-            yield json.dumps(item, ensure_ascii=False) + "\n"
+        try:
+            for item in self_value_bot.self_value_stream(**data):
+                yield json.dumps(item, ensure_ascii=False) + "\n"
+        except Exception as e:
+            yield json.dumps({
+                "event": "error",
+                "message": f"Streaming backend error: {str(e)}"
+            }, ensure_ascii=False) + "\n"
 
     response = StreamingHttpResponse(
         event_stream(),
         content_type="application/x-ndjson; charset=utf-8"
     )
-    response["Access-Control-Allow-Origin"] = "http://localhost:8082"
+    response["Access-Control-Allow-Origin"] = FRONTEND_ORIGIN
     response["Cache-Control"] = "no-cache"
     response["X-Accel-Buffering"] = "no"
     return response
@@ -143,6 +269,8 @@ def get_advice_stream(request):
 
 def format_data(raw_data):
     print('Raw_Data:', raw_data)
+    import re
+
     task_sections = re.findall(
         r'\*\*(.*?)\*\*\s*\(\[\#(.*?)\#\]\)\s*\n(.+?)(?=\n\n\*\*|\n\n###|\Z)',
         raw_data,
@@ -160,16 +288,15 @@ def format_data(raw_data):
         raw_data,
         re.DOTALL
     )
-    print("Advices:", advices)
     advices_list = [{'index': advice[0], 'content': advice[1].strip()} for advice in advices]
-    print("advices_list:", advices_list)
     formatted_data['advices'] = advices_list
-    print('formatted_data:', formatted_data)
 
     return JsonResponse(formatted_data)
 
 
 def extract_information(raw_data):
+    import re
+
     pattern = r'#### (.*?)\(\[\#(.*?)\#\]\)\n(.*?)\n\n'
     matches = re.findall(pattern, raw_data, re.DOTALL)
 

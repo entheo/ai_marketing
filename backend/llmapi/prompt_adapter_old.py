@@ -21,7 +21,6 @@ prompt_adapter.py
 
 from typing import Any, Dict, Tuple
 import json
-import re
 
 
 class PromptAdapter:
@@ -51,8 +50,8 @@ class PromptAdapter:
 
     QUESTION_LENGTH_RULE = {
         "ideal_min": 18,
-        "ideal_max": 38,
-        "hard_max": 50,
+        "ideal_max": 28,
+        "hard_max": 36,
     }
 
     # 统一的上下文说明协议
@@ -113,21 +112,7 @@ class PromptAdapter:
   "can_summarize": false
 }
 
-四、行动建议 action_plan
-{
-  "status": "action_plan",
-  "question_type": "",
-  "question": "",
-  "options": [],
-  "summary": "当前行动重点",
-  "report": "行动建议内容",
-  "next_action": "下一步最值得先做的一件事",
-  "question_length_hint": "",
-  "should_end": false,
-  "can_summarize": false
-}
-
-五、澄清 clarify
+四、澄清 clarify
 {
   "status": "clarify",
   "question_type": "text",
@@ -141,7 +126,7 @@ class PromptAdapter:
   "can_summarize": false
 }
 
-六、异常 error
+五、异常 error
 {
   "status": "error",
   "question_type": "",
@@ -187,11 +172,10 @@ class PromptAdapter:
 - 必须输出以下之一：
   - stage_summary
   - final_report
-  - action_plan
 - question 必须为空字符串
 - question_type 必须为空字符串
 - options 必须为 []
-- summary / report / next_action 中至少一个非空
+- summary 与 report 至少一个非空
 - can_summarize 必须为 false
 
 也就是说：
@@ -225,28 +209,6 @@ class PromptAdapter:
 7. 问题必须自然、口语化、易回答，不要像分析报告标题
 8. 单选题题干要更短、更直接，优先短于开放题
 
-【报告类内容展示约束】
-如果当前输出的是 stage_summary / final_report / action_plan：
-1. 允许使用轻量 Markdown，但只能是以下几种：
-   - 普通分段
-   - 单层无序列表，以 "- " 开头
-   - 单层有序列表，以 "1. "、"2. " 开头
-   - 少量加粗，使用 **重点内容**
-2. 不允许使用以下格式：
-   - Markdown 代码块，例如 ``` 或 ~~~
-   - 行内代码，例如 `内容`
-   - 表格，例如 |---|
-   - 引用块，例如 > 内容
-   - 图片
-   - HTML 标签
-   - 多级嵌套列表
-   - 一级/二级/三级标题，例如 #、##、###
-3. 不要把内容写成“接口说明”或“报告模板”
-4. 不要出现“以下是”“如下”“总结如下：”这类过强的模型腔开头
-5. summary / report / next_action 优先输出自然语言段落
-6. 如果需要列表，优先只使用 2~4 条短列表
-7. 整体必须便于前端做有限解析，不要依赖复杂 markdown 排版
-
 【选项约束】
 如果 question_type = "single_choice"：
 1. 必须提供 options
@@ -276,7 +238,6 @@ class PromptAdapter:
 - 一次只问一个问题
 - 问题必须短、单句、可展示
 - summarize 阶段绝不能继续提问
-- 报告类内容只能使用轻量 markdown
 - 不要为了“完整”而牺牲前端稳定展示
 
 【最终原则】
@@ -367,70 +328,22 @@ class PromptAdapter:
             return "medium"
         return "long"
 
-    def _contains_disallowed_report_markup(self, text: str) -> Tuple[bool, str]:
-        """
-        检查报告类字段中是否包含不允许的复杂 markdown / HTML。
-        """
-        value = str(text or "")
-
-        disallowed_patterns = [
-            (r"```|~~~", "不允许使用 Markdown 代码块"),
-            (r"`[^`\n]+`", "不允许使用行内代码"),
-            (r"(?m)^\s*>", "不允许使用引用块"),
-            (r"(?m)^\s{0,3}#{1,6}\s+", "不允许使用 Markdown 标题"),
-            (r"<[^>]+>", "不允许使用 HTML 标签"),
-            (r"(?m)^\s*\|.+\|\s*$", "不允许使用 Markdown 表格"),
-            (r"!\[[^\]]*\]\([^)]+\)", "不允许使用图片"),
-        ]
-
-        for pattern, message in disallowed_patterns:
-            if re.search(pattern, value):
-                return True, message
-
-        return False, ""
-
-    def _contains_nested_list(self, text: str) -> bool:
-        """
-        检查是否出现多级嵌套列表。
-        """
-        value = str(text or "")
-        lines = value.splitlines()
-        nested_list_pattern = re.compile(r"^\s{2,}([-*]|\d+\.)\s+")
-        return any(nested_list_pattern.match(line) for line in lines)
-
-    def _validate_report_like_field(self, field_name: str, text: str) -> Tuple[bool, str]:
-        """
-        对报告类字段做轻量展示格式校验。
-        """
-        value = str(text or "").strip()
-        if not value:
-            return True, ""
-
-        has_disallowed, message = self._contains_disallowed_report_markup(value)
-        if has_disallowed:
-            return False, f"{field_name} {message}"
-
-        if self._contains_nested_list(value):
-            return False, f"{field_name} 不允许使用多级嵌套列表"
-
-        return True, ""
-
     def basic_validate_response(self, response_text: str) -> Tuple[bool, Dict[str, Any], str]:
         """
         对模型输出做基础结构校验。
 
         返回：
         - is_valid: 是否通过
-        - data: 解析后的 JSON；如果失败则为 {}
+        - data: 解析后的 JSON；如果失败则为 {{}}
         - error_message: 错误信息；成功则为空字符串
         """
         if not response_text or not str(response_text).strip():
-            return False, {}, "模型返回为空"
+            return False, {{}}, "模型返回为空"
 
         try:
             data = json.loads(response_text)
         except Exception as e:
-            return False, {}, f"模型输出不是合法 JSON：{e}"
+            return False, {{}}, f"模型输出不是合法 JSON：{e}"
 
         if not isinstance(data, dict):
             return False, data, "模型输出必须是 JSON 对象"
@@ -505,33 +418,16 @@ class PromptAdapter:
 
             data["question_length_hint"] = ""
 
-            summary = str(data.get("summary", "")).strip()
-            report = str(data.get("report", "")).strip()
-            next_action = str(data.get("next_action", "")).strip()
-
-            ok, message = self._validate_report_like_field("summary", summary)
-            if not ok:
-                return False, data, message
-
-            ok, message = self._validate_report_like_field("report", report)
-            if not ok:
-                return False, data, message
-
-            ok, message = self._validate_report_like_field("next_action", next_action)
-            if not ok:
-                return False, data, message
-
             if status == "stage_summary":
+                summary = str(data.get("summary", "")).strip()
+                report = str(data.get("report", "")).strip()
                 if not summary and not report:
                     return False, data, "stage_summary 状态下 summary 与 report 不能同时为空"
 
             if status == "final_report":
+                report = str(data.get("report", "")).strip()
                 if not report:
                     return False, data, "final_report 状态下 report 不能为空"
-
-            if status == "action_plan":
-                if not summary and not report and not next_action:
-                    return False, data, "action_plan 状态下 summary / report / next_action 不能同时为空"
 
             if data.get("can_summarize") is not False:
                 data["can_summarize"] = False

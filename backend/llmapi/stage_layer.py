@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 from copy import deepcopy
 import uuid
 
@@ -418,8 +418,14 @@ class StageLayer:
             if self._clean_text(text)
         ]
 
+        stage_summary = self._clean_text(raw_output.stage_summary)
+        next_prompt_hint = self._clean_text(raw_output.next_prompt_hint)
+
         confirmation_candidates = self._build_confirmation_candidates(
             judgements=judgements,
+            findings=findings,
+            stage_summary=stage_summary,
+            next_prompt_hint=next_prompt_hint,
             max_items=cfg.max_confirmation_candidates,
         )
 
@@ -427,27 +433,53 @@ class StageLayer:
             method_id=self.method_definition.method_id,
             stage_id=stage_definition.stage_id,
             stage_name=stage_definition.stage_name,
-            stage_summary=self._clean_text(raw_output.stage_summary),
+            stage_summary=stage_summary,
             findings=findings,
             judgements=judgements,
             confirmation_candidates=confirmation_candidates,
-            next_prompt_hint=self._clean_text(raw_output.next_prompt_hint),
+            next_prompt_hint=next_prompt_hint,
         )
         return snapshot
 
     def _build_confirmation_candidates(
         self,
         judgements: List[Judgement],
+        findings: List[Finding],
+        stage_summary: str = "",
+        next_prompt_hint: str = "",
         max_items: int = 2,
     ) -> List[ConfirmationCandidate]:
         """
-        第一版保守策略：
-        - 默认只从 judgement 里挑前 1~2 条
-        - impact 先按轻规则判断
+        收紧规则：
+        1. judgement 不是都能进入 confirmation
+        2. blocking confirmation 门槛更高
+        3. 若整体仍明显处于“继续补材料”状态，则不轻易给 confirmation
         """
         result: List[ConfirmationCandidate] = []
-        for judgement in judgements[:max_items]:
+
+        for judgement in judgements:
+            if len(result) >= max_items:
+                break
+
+            if not self._is_judgement_supported(judgement, findings):
+                continue
+
             impact = self._infer_confirmation_impact(judgement.content)
+
+            if impact == ConfirmationImpact.BLOCKING.value:
+                if not self._can_emit_blocking_confirmation(
+                    findings=findings,
+                    stage_summary=stage_summary,
+                    next_prompt_hint=next_prompt_hint,
+                ):
+                    continue
+            else:
+                if not self._can_emit_non_blocking_confirmation(
+                    findings=findings,
+                    stage_summary=stage_summary,
+                ):
+                    continue
+
             result.append(
                 ConfirmationCandidate(
                     id=self._new_id("c"),
@@ -458,6 +490,7 @@ class StageLayer:
                     user_note="",
                 )
             )
+
         return result
 
     def _infer_confirmation_impact(self, text: str) -> str:
@@ -489,17 +522,26 @@ class StageLayer:
         judgements = snapshot.judgements or []
         confirmation_candidates = snapshot.confirmation_candidates or []
 
-        if not findings and not judgements:
+        finding_count = self._count_effective_findings(findings)
+        valid_judgements = [
+            item for item in judgements
+            if self._is_judgement_supported(item, findings)
+        ]
+        valid_confirmations = [
+            item for item in confirmation_candidates
+            if self._is_confirmation_candidate_valid(item, judgements, findings, snapshot)
+        ]
+
+        if finding_count == 0 and not valid_judgements:
             return MaturityLevel.L0.value
 
-        if findings and not judgements:
+        if finding_count >= 1 and not valid_judgements:
             return MaturityLevel.L1.value
 
-        if judgements:
-            maturity = MaturityLevel.L2.value
-            if self._has_confirmation_worthy_candidate(confirmation_candidates):
-                maturity = MaturityLevel.L3.value
-            return maturity
+        if valid_judgements:
+            if valid_confirmations:
+                return MaturityLevel.L3.value
+            return MaturityLevel.L2.value
 
         return MaturityLevel.L0.value
 
@@ -510,6 +552,118 @@ class StageLayer:
         return any(
             candidate.status == "pending"
             for candidate in (candidates or [])
+        )
+
+    def _count_effective_findings(self, findings: List[Finding]) -> int:
+        return sum(1 for item in (findings or []) if self._clean_text(item.content))
+
+    def _is_judgement_supported(self, judgement: Judgement, findings: List[Finding]) -> bool:
+        """
+        第一版支撑度规则：
+        1. 至少要有 2 条有效 finding，judgement 才算真正可驱动成熟度
+        2. judgement 若没有 supported_by，也默认按 finding 数量兜底
+        """
+        finding_count = self._count_effective_findings(findings)
+        if finding_count < 2:
+            return False
+
+        if judgement.supported_by:
+            supported_ids = set(judgement.supported_by)
+            actual_supported = sum(1 for item in findings if item.id in supported_ids)
+            return actual_supported >= 2
+
+        return True
+
+    def _can_emit_blocking_confirmation(
+        self,
+        findings: List[Finding],
+        stage_summary: str,
+        next_prompt_hint: str,
+    ) -> bool:
+        """
+        blocking confirmation 更严格：
+        1. 至少 2 条有效 finding
+        2. stage_summary 不能还在强调“零散 / 继续补材料”
+        3. next_prompt_hint 不能明显仍是纯补材料态
+        """
+        if self._count_effective_findings(findings) < 2:
+            return False
+
+        if self._looks_like_still_collecting(stage_summary):
+            return False
+
+        if self._looks_like_still_collecting(next_prompt_hint):
+            return False
+
+        return True
+
+    def _can_emit_non_blocking_confirmation(
+        self,
+        findings: List[Finding],
+        stage_summary: str,
+    ) -> bool:
+        """
+        non-blocking confirmation 稍宽，但也不能太早。
+        """
+        if self._count_effective_findings(findings) < 2:
+            return False
+
+        if self._looks_like_still_collecting(stage_summary) and self._count_effective_findings(findings) < 3:
+            return False
+
+        return True
+
+    def _looks_like_still_collecting(self, text: str) -> bool:
+        value = self._clean_text(text)
+        if not value:
+            return False
+
+        collecting_signals = [
+            "零散线索",
+            "继续补",
+            "继续收集",
+            "补足材料",
+            "继续确认",
+            "继续探索",
+            "还需要更多",
+            "仍在收集",
+        ]
+        return any(word in value for word in collecting_signals)
+
+    def _is_confirmation_candidate_valid(
+        self,
+        candidate: ConfirmationCandidate,
+        judgements: List[Judgement],
+        findings: List[Finding],
+        snapshot: StageSnapshot,
+    ) -> bool:
+        """
+        confirmation 是否足以支撑 L3：
+        必须对应一个被支撑的 judgement，
+        且生成条件本身成立。
+        """
+        source = None
+        for item in judgements:
+            if item.id == candidate.source_judgement_id:
+                source = item
+                break
+
+        if source is None:
+            return False
+
+        if not self._is_judgement_supported(source, findings):
+            return False
+
+        if candidate.impact == ConfirmationImpact.BLOCKING.value:
+            return self._can_emit_blocking_confirmation(
+                findings=findings,
+                stage_summary=snapshot.stage_summary,
+                next_prompt_hint=snapshot.next_prompt_hint,
+            )
+
+        return self._can_emit_non_blocking_confirmation(
+            findings=findings,
+            stage_summary=snapshot.stage_summary,
         )
 
     # -------------------------

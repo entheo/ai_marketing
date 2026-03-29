@@ -1,52 +1,46 @@
-<template/>
-  <div class="questions-page" :class="{ 'questions-page--thinking': submitting }">
+<template>
+  <div class="questions-page" :class="{ 'questions-page--thinking': isQuestionBusy }">
     <div class="questions-page-bg questions-bg-a"></div>
     <div class="questions-page-bg questions-bg-b"></div>
 
     <div class="questions-shell">
       <div class="questions-container">
-        <div class="questions-head">
-          <div class="questions-kicker">自我价值梳理</div>
-        </div>
-
         <section v-if="interactionMode === 'ask'" class="questions-main">
-          <div class="question-title-wrap" :class="{ 'question-title-wrap--thinking': submitting }">
-            <h1 class="questions-title">
-              <template v-if="submitting">
-                <template v-if="streamedQuestionStableText || streamedQuestionPendingChar">
-                  <span>{{ streamedQuestionStableText }}</span><span
+          <div class="question-stage">
+            <div class="question-title-wrap" :class="{ 'question-title-wrap--thinking': isQuestionBusy }">
+              <h1 class="questions-title" :class="questionVisualSizeClass">
+                <template v-if="requestingQuestion && !hasAnyStreamedQuestion">
+                  <span class="gray">思考…</span><span class="thinking-caret"></span>
+                </template>
+
+                <template v-else-if="hasAnyStreamedQuestion">
+                  <span>{{ streamedQuestionStableText }}</span>
+                  <span
                     v-if="streamedQuestionPendingChar"
                     class="stream-char"
-                  >{{ streamedQuestionPendingChar }}</span><span class="thinking-caret"></span>
+                  >{{ streamedQuestionPendingChar }}</span>
+                  <span class="thinking-caret"></span>
                 </template>
+
                 <template v-else>
-                  正在整理下一问<span class="thinking-caret"></span>
+                  {{ currentQuestion || '' }}
                 </template>
-              </template>
-              <template v-else>
-                {{ currentQuestion || '正在生成第一题…' }}
-              </template>
-            </h1>
+              </h1>
 
-            <p class="questions-hint">
-              {{
-                submitting
-                  ? '请稍等片刻，我们正在继续贴近你的表达。'
-                  : '不用担心能否一次说完整。从你此刻最有感觉的地方开始就可以。'
-              }}
-            </p>
+              <p v-if="!loading" class="questions-hint">
+                {{ questionHintText }}
+              </p>
+            </div>
+
+            <div v-if="loading" class="questions-status">
+              正在请求问题……
+            </div>
           </div>
 
-          <div v-if="loading" class="questions-status">
-            正在请求问题……
-          </div>
-
-          <transition name="answer-fade" mode="out-in">
+          <div class="answer-stage">
             <div
-              v-if="!loading"
-              :key="submitting ? 'thinking' : `${questionRenderKey}-${questionType}`"
               class="question-answer-area"
-              :class="{ 'question-answer-area--thinking': submitting }"
+              :class="{ 'question-answer-area--thinking': isAnswerDimmed }"
             >
               <div
                 v-if="questionType === 'text'"
@@ -56,7 +50,7 @@
                   v-model="answerText"
                   class="question-textarea"
                   placeholder="在这里慢慢写下你的想法。"
-                  :disabled="submitting"
+                  :disabled="isQuestionBusy || !answerRevealReady"
                 ></textarea>
               </div>
 
@@ -76,40 +70,120 @@
                       type="radio"
                       name="question-option"
                       :value="option"
-                      :disabled="submitting"
+                      :disabled="isQuestionBusy || !answerRevealReady"
                     />
                     <span>{{ option }}</span>
                   </label>
                 </div>
               </div>
             </div>
-          </transition>
+          </div>
         </section>
 
-        <section v-else-if="interactionMode === 'draft_report'" class="questions-main">
-          <div class="draft-report-head question-title-wrap">
-            <div class="questions-kicker questions-kicker--soft">阶段性整理</div>
+        <div
+          v-if="interactionMode === 'ask' && showSummarizeButton"
+          class="question-side-link-row question-side-link-row--intro"
+        >
+          <button
+            class="question-side-link"
+            type="button"
+            :disabled="isQuestionBusy || !answerRevealReady"
+            @click="summarizeNow"
+          >
+            <span class="question-side-link__icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="none">
+                <path
+                  d="M6 4.5h5.8L15 7.7V15a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9.5a1 1 0 0 1 1-1Z"
+                  stroke="currentColor"
+                  stroke-width="1.4"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M11.8 4.5v2.2a1 1 0 0 0 1 1H15"
+                  stroke="currentColor"
+                  stroke-width="1.4"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M7.5 10h5M7.5 12.8h4"
+                  stroke="currentColor"
+                  stroke-width="1.4"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </span>
+            <span class="question-side-link__text">暂时聊到这里，总结一下</span>
+          </button>
+        </div>
 
-            <h1 class="questions-title">
-              这是当前阶段最接近你的一版理解。
-            </h1>
+        <section
+          v-else-if="interactionMode === 'stage_transition'"
+          class="questions-main questions-main--transition"
+        >
+          <div class="transition-stage">
+            <div class="report-hero">
+              <h1 class="questions-title questions-title--medium report-title">
+                根据当前的对话，整理出此时你的理解。
+              </h1>
 
-            <p class="questions-hint">
-              先看看它是否触到你真正想说的部分。如果还不够，我们可以继续往里走。
-            </p>
-          </div>
-
-          <div class="question-breath-wrap draft-report-wrap">
-            <div class="draft-report-box">
-              {{ draftReport }}
+              <p class="questions-hint report-hint">
+                这不是结束，是先把已经浮出来的东西看清楚
+              </p>
             </div>
           </div>
 
-          <div class="questions-actions questions-actions--draft">
+          <div class="transition-panel-wrap">
+            <div class="transition-panel">
+              正在整理,请稍等…<span class="thinking-caret"></span>
+            </div>
+          </div>
+        </section>
+
+        <section v-else-if="interactionMode === 'draft_report'" class="report-page">
+          <div class="report-topline">
+            <div class="questions-kicker questions-kicker--soft">''</div>
+          </div>
+
+          <div class="report-hero">
+            <h1 class="questions-title questions-title--medium report-title">
+              目前的阶段性发现
+            </h1>
+            
+            <!--
+            <p class="report-subtitle">
+              可以随时继续深入，也可以先留在这里
+            </p>
+            -->
+
+          </div>
+
+          <div class="report-stack">
+            <section class="report-card report-card--primary">
+              <div class="report-card-head">
+                <div class="report-card-kicker">- 当前理解 -</div>
+              </div>
+              
+              <div class="report-card-body report-main-content">
+                <LightMarkdownBlock :content="draftReportMain" />
+              </div>
+
+            </section>
+
+            <section v-if="draftReportNextAction" class="report-card report-card--secondary">
+              <div class="report-card-head">
+                <div class="report-card-kicker">- 下一步建议 -</div>
+              </div>
+              <div class="report-card-body report-next-content">
+                <LightMarkdownBlock :content="draftReportNextAction"/>
+              </div>
+            </section>
+          </div>
+
+          <div class="questions-actions questions-actions--draft report-actions">
             <button
               class="question-btn question-btn--ghost"
               type="button"
-              :disabled="submitting"
+              :disabled="isQuestionBusy"
               @click="continueDeeper"
             >
               继续深入
@@ -117,10 +191,10 @@
             <button
               class="question-btn question-btn--solid"
               type="button"
-              :disabled="submitting"
+              :disabled="isQuestionBusy"
               @click="acceptDraftReport"
             >
-              {{ submitting ? '正在整理…' : '这版已经接近我了' }}
+              {{ isQuestionBusy ? '正在整理…' : '保留这一版' }}
             </button>
           </div>
         </section>
@@ -129,22 +203,27 @@
           {{ errorMessage }}
         </div>
 
-        <div v-if="interactionMode === 'ask'" class="questions-actions">
+        <div
+          v-if="interactionMode === 'ask'"
+          class="questions-actions"
+          :class="{ 'questions-actions--thinking': isAnswerDimmed }"
+        >
           <button
             class="question-btn question-btn--ghost"
             type="button"
-            :disabled="submitting"
+            :disabled="isQuestionBusy || !answerRevealReady"
             @click="goBack"
           >
             返回上一页
           </button>
+
           <button
             class="question-btn question-btn--solid"
             type="button"
-            :disabled="submitting"
+            :disabled="isQuestionBusy || !answerRevealReady"
             @click="goNext"
           >
-            {{ submitting ? '正在整理…' : '下一步' }}
+            {{ requestingQuestion ? '正在整理…' : '下一步' }}
           </button>
         </div>
       </div>
@@ -153,6 +232,8 @@
 </template>
 
 <script>
+import LightMarkdownBlock from '@/components/LightMarkdownBlock.vue'
+
 export default {
   name: 'SelfValueQuestions',
 
@@ -161,6 +242,7 @@ export default {
       loading: true,
       errorMessage: '',
       currentQuestion: '',
+      currentQuestionLengthHint: 'medium',
       questionType: 'text',
       questionOptions: [],
       answerText: '',
@@ -169,10 +251,25 @@ export default {
       round: 1,
       interactionMode: 'ask',
       draftReport: '',
-      submitting: false,
+      draftReportMain: '',
+      draftReportNextAction: '',
       questionRenderKey: 0,
+
+      canSummarize: false,
+
+      lockedStreamingLengthHint: '',
+
+      requestingQuestion: false,
+      playingQuestion: false,
+      savingDraftReport: false,
+      requestingSummary: false,
+
+      answerRevealReady: false,
+      answerRevealTimer: null,
+
       rawAskBuffer: '',
       targetQuestionText: '',
+      targetQuestionLengthHint: 'medium',
       askStreamComplete: false,
       streamedQuestionStableText: '',
       streamedQuestionPendingChar: '',
@@ -181,11 +278,163 @@ export default {
       playbackAccumulator: 0
     }
   },
+  components:{
+      LightMarkdownBlock
+      },
+
+  computed: {
+    prefetchedFirstQuestion() {
+      return this.$store.state.first_question_data
+    },
+
+    prefetchedFirstQuestionReady() {
+      return this.$store.state.first_question_ready
+    },
+
+    isQuestionBusy() {
+      return (
+        this.requestingQuestion ||
+        this.playingQuestion ||
+        this.savingDraftReport ||
+        this.requestingSummary
+      )
+    },
+
+    isAnswerDimmed() {
+      return this.isQuestionBusy || !this.answerRevealReady
+    },
+
+    hasAnyStreamedQuestion() {
+      return !!(this.streamedQuestionStableText || this.streamedQuestionPendingChar)
+    },
+
+    activeQuestionText() {
+      if (this.hasAnyStreamedQuestion) {
+        return this.targetQuestionText || (this.streamedQuestionStableText + this.streamedQuestionPendingChar)
+      }
+      return this.currentQuestion || ''
+    },
+
+    activeQuestionLengthHint() {
+      if (this.lockedStreamingLengthHint) {
+        return this.lockedStreamingLengthHint
+      }
+      return this.currentQuestionLengthHint || this.inferQuestionLengthHint(this.activeQuestionText)
+    },
+
+    questionVisualSizeClass() {
+      const hint = this.activeQuestionLengthHint
+      if (hint === 'long') return 'questions-title--long'
+      if (hint === 'short') return 'questions-title--short'
+      return 'questions-title--medium'
+    },
+
+    questionHintText() {
+      if (this.isQuestionBusy) {
+        return ''
+      }
+      return '从你此刻最有感觉，最舒服的地方开始就可以'
+    },
+
+    showSummarizeButton() {
+      return (
+        this.interactionMode === 'ask' &&
+        this.answerRevealReady &&
+        !this.isQuestionBusy &&
+        this.round >= 4 &&
+        this.canSummarize
+      )
+    }
+  },
 
   methods: {
+    inferQuestionLengthHint(text) {
+      const len = String(text || '').trim().length
+      if (len <= 20) return 'short'
+      if (len <= 30) return 'medium'
+      return 'long'
+    },
+
+    clearAnswerRevealTimer() {
+      if (this.answerRevealTimer) {
+        clearTimeout(this.answerRevealTimer)
+        this.answerRevealTimer = null
+      }
+    },
+
+    delayAnswerReveal() {
+      this.clearAnswerRevealTimer()
+      this.answerRevealReady = false
+      this.answerRevealTimer = setTimeout(() => {
+        this.answerRevealReady = true
+        this.answerRevealTimer = null
+      }, 220)
+    },
+
+    bindQuestionMeta(data, fallbackQuestion = '') {
+      const finalQuestion = data.question || fallbackQuestion || ''
+      this.currentQuestion = finalQuestion
+      this.currentQuestionLengthHint =
+        data.question_length_hint || this.inferQuestionLengthHint(finalQuestion)
+
+      const nextType = this.normalizeQuestionType(data.question_type)
+      const nextOptions = Array.isArray(data.options) ? data.options : []
+
+      this.answerText = ''
+      this.selectedOption = ''
+
+      this.questionType = nextType
+      this.questionOptions = nextOptions
+      this.canSummarize = !!data.can_summarize
+      this.questionRenderKey += 1
+    },
+
+    applyFirstQuestion(data) {
+      this.loading = false
+      this.errorMessage = ''
+      this.interactionMode = 'ask'
+
+      const firstQuestion = data.question || '未返回问题内容'
+      this.bindQuestionMeta(data, firstQuestion)
+
+      this.playLocalQuestion(
+        firstQuestion,
+        data.question_length_hint || this.inferQuestionLengthHint(firstQuestion)
+      )
+    },
+
+    playLocalQuestion(questionText, lengthHint = '') {
+      this.resetAskStreamingState()
+      this.answerRevealReady = false
+      this.requestingQuestion = false
+      this.playingQuestion = true
+      this.targetQuestionText = questionText || ''
+      this.targetQuestionLengthHint = lengthHint || this.inferQuestionLengthHint(questionText)
+      this.lockedStreamingLengthHint = this.targetQuestionLengthHint || 'medium'
+      this.askStreamComplete = true
+      this.ensurePlaybackRunning()
+    },
+
     goBack() {
-      if (this.submitting) return
+      if (this.isQuestionBusy || !this.answerRevealReady) return
       this.$router.back()
+    },
+
+    normalizeQuestionType(questionType) {
+      return questionType === 'single_choice' ? 'single_choice' : 'text'
+    },
+
+    getCurrentAnswer() {
+      return this.questionType === 'single_choice'
+        ? this.selectedOption
+        : this.answerText.trim()
+    },
+
+    validateCurrentAnswer(answer) {
+      if (this.questionType === 'single_choice') {
+        return !!answer
+      }
+      return !!String(answer || '').trim()
     },
 
     extractQuestionFromBuffer(raw) {
@@ -233,8 +482,13 @@ export default {
       return this.streamedQuestionStableText.length + this.streamedQuestionPendingChar.length
     },
 
-    getStepDelay(ch) {
-      return /[，。！？；：,.!?;:]/.test(ch) ? 190 :70
+    getNextChunkSize(currentChar) {
+      if (/[，。！？；：,.!?;:]/.test(currentChar)) return 1
+      return 2
+    },
+
+    getStepDelay(chunkText) {
+      return /[，。！？；：,.!?;:]/.test(chunkText) ? 190 : 85
     },
 
     promotePendingChar() {
@@ -242,6 +496,14 @@ export default {
         this.streamedQuestionStableText += this.streamedQuestionPendingChar
         this.streamedQuestionPendingChar = ''
       }
+    },
+
+    takeNextChunk(text, startIndex) {
+      const rest = text.slice(startIndex)
+      if (!rest) return ''
+      const firstChar = rest[0]
+      const size = this.getNextChunkSize(firstChar)
+      return rest.slice(0, size)
     },
 
     tickQuestionPlayback(timestamp) {
@@ -256,20 +518,18 @@ export default {
       let builtLength = this.getBuiltLength()
 
       while (builtLength < this.targetQuestionText.length) {
-        const nextChar = this.targetQuestionText[builtLength]
-        const neededDelay = this.getStepDelay(nextChar)
+        const nextChunk = this.takeNextChunk(this.targetQuestionText, builtLength)
+        if (!nextChunk) break
 
+        const neededDelay = this.getStepDelay(nextChunk)
         if (this.playbackAccumulator < neededDelay) break
 
         this.playbackAccumulator -= neededDelay
         this.promotePendingChar()
-        this.streamedQuestionPendingChar = nextChar
+        this.streamedQuestionPendingChar = nextChunk
         builtLength = this.getBuiltLength()
 
-        const nextNextChar = this.targetQuestionText[builtLength]
-        if (!nextNextChar) break
-
-        if (/[，。！？；：,.!?;:]/.test(nextChar)) break
+        if (/[，。！？；：,.!?;:]$/.test(nextChunk)) break
       }
 
       if (this.getBuiltLength() < this.targetQuestionText.length || !this.askStreamComplete) {
@@ -294,12 +554,16 @@ export default {
       this.promotePendingChar()
       this.playbackLastTs = 0
       this.playbackAccumulator = 0
-      this.submitting = false
+      this.requestingQuestion = false
+      this.playingQuestion = false
       this.rawAskBuffer = ''
       this.targetQuestionText = ''
+      this.targetQuestionLengthHint = 'medium'
       this.askStreamComplete = false
       this.streamedQuestionStableText = ''
       this.streamedQuestionPendingChar = ''
+
+      this.delayAnswerReveal()
     },
 
     resetAskStreamingState() {
@@ -307,13 +571,151 @@ export default {
         window.cancelAnimationFrame(this.playbackRafId)
         this.playbackRafId = null
       }
+
+      this.lockedStreamingLengthHint = ''
       this.rawAskBuffer = ''
       this.targetQuestionText = ''
+      this.targetQuestionLengthHint = 'medium'
       this.askStreamComplete = false
       this.streamedQuestionStableText = ''
       this.streamedQuestionPendingChar = ''
       this.playbackLastTs = 0
       this.playbackAccumulator = 0
+      this.playingQuestion = false
+      this.clearAnswerRevealTimer()
+    },
+
+    applyAskResult(data) {
+      const finalQuestion =
+        data.question ||
+        this.targetQuestionText ||
+        (this.streamedQuestionStableText + this.streamedQuestionPendingChar) ||
+        '未返回问题内容'
+
+      this.interactionMode = 'ask'
+      this.bindQuestionMeta(data, finalQuestion)
+      this.round += 1
+
+      this.targetQuestionText = finalQuestion
+      this.targetQuestionLengthHint =
+        data.question_length_hint || this.inferQuestionLengthHint(finalQuestion)
+
+      if (!this.lockedStreamingLengthHint) {
+        this.lockedStreamingLengthHint = this.targetQuestionLengthHint || 'medium'
+      }
+
+      this.currentQuestionLengthHint = this.lockedStreamingLengthHint
+      this.askStreamComplete = true
+      this.playingQuestion = true
+      this.answerRevealReady = false
+      this.ensurePlaybackRunning()
+    },
+
+    splitDraftReport(data) {
+      const summaryText = String(data.summary || '').trim()
+      const reportText = String(data.report || '').trim()
+      const nextActionText = String(data.next_action || '').trim()
+
+      let mainText = reportText || summaryText || ''
+      let nextText = nextActionText || ''
+
+      if (!mainText && nextText) {
+        mainText = nextText
+        nextText = ''
+      }
+
+      if (!mainText) {
+        mainText = '这一轮已经形成了一些线索，但当前返回内容还不够完整。'
+      }
+
+      return {
+        main: mainText,
+        next: nextText
+      }
+    },
+
+    applyDraftReportResult(data) {
+      const parts = this.splitDraftReport(data)
+      this.draftReport = parts.main
+      this.draftReportMain = parts.main
+      this.draftReportNextAction = parts.next
+      this.interactionMode = 'draft_report'
+      this.requestingSummary = false
+      this.answerRevealReady = true
+      this.resetAskStreamingState()
+    },
+
+    handleStreamPayload(payload) {
+      if (payload.event === 'error') {
+        throw new Error(payload.message || '流式生成失败')
+      }
+
+      if (payload.event === 'chunk') {
+        this.rawAskBuffer += payload.content || ''
+        const partialQuestion = this.extractQuestionFromBuffer(this.rawAskBuffer)
+
+        if (partialQuestion && partialQuestion.length > this.targetQuestionText.length) {
+          this.targetQuestionText = partialQuestion
+          this.playingQuestion = true
+          this.ensurePlaybackRunning()
+        }
+        return
+      }
+
+      if (payload.event === 'done') {
+        const data = payload.data || {}
+        const status = data.status || ''
+
+        if (status === 'ask' || status === 'clarify') {
+          this.applyAskResult(data)
+          return
+        }
+
+        if (
+          status === 'stage_summary' ||
+          status === 'final_report' ||
+          status === 'draft_report' ||
+          status === 'action_plan'
+        ) {
+          this.applyDraftReportResult(data)
+          return
+        }
+
+        throw new Error(`未识别的返回状态: ${status || 'empty'}`)
+      }
+    },
+
+    async readNdjsonStream(response) {
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder('utf-8')
+      let buffer = ''
+
+      let done = false
+      while (!done) {
+        const result = await reader.read()
+        done = result.done
+        const value = result.value
+
+        if (value) {
+          buffer += decoder.decode(value, { stream: !done })
+        }
+
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.trim()) continue
+          const payload = JSON.parse(line)
+          this.handleStreamPayload(payload)
+        }
+
+        if (done) break
+      }
+
+      if (buffer.trim()) {
+        const payload = JSON.parse(buffer.trim())
+        this.handleStreamPayload(payload)
+      }
     },
 
     async fetchFirstQuestion() {
@@ -339,11 +741,7 @@ export default {
           throw new Error(data.error || '请求失败')
         }
 
-        this.interactionMode = 'ask'
-        this.currentQuestion = data.question || '未返回问题内容'
-        this.questionType = data.question_type || 'text'
-        this.questionOptions = Array.isArray(data.options) ? data.options : []
-        this.questionRenderKey += 1
+        this.applyFirstQuestion(data)
       } catch (error) {
         this.errorMessage = `获取第一题失败：${error.message}`
       } finally {
@@ -352,14 +750,24 @@ export default {
     },
 
     async goNext() {
-      if (this.submitting) return
+      if (this.isQuestionBusy || !this.answerRevealReady) return
 
-      this.submitting = true
+      const currentAnswer = this.getCurrentAnswer()
+
+      if (!this.validateCurrentAnswer(currentAnswer)) {
+        this.errorMessage = this.questionType === 'single_choice'
+          ? '请先选择一个选项。'
+          : '请先输入你的回答。'
+        return
+      }
+
+      this.requestingQuestion = true
+      this.playingQuestion = false
+      this.answerRevealReady = false
       this.errorMessage = ''
       this.resetAskStreamingState()
 
-      const currentAnswer =
-        this.questionType === 'single_choice' ? this.selectedOption : this.answerText
+      this.lockedStreamingLengthHint = 'medium'
 
       this.qaHistory.push({
         round: this.round,
@@ -381,7 +789,7 @@ export default {
             stage: 'continue',
             answer: currentAnswer,
             round: this.round,
-            qa_history:this.qaHistory
+            qa_history: this.qaHistory
           })
         })
 
@@ -389,137 +797,64 @@ export default {
           throw new Error('流式请求失败')
         }
 
-        const reader = response.body.getReader()
-        const decoder = new TextDecoder('utf-8')
-        let buffer = ''
-        let streamDone = false
-
-        while (!streamDone) {
-          const result = await reader.read()
-          streamDone = result.done
-          const value = result.value
-
-          if (streamDone) break
-
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split('\n')
-          buffer = lines.pop() || ''
-
-          for (const line of lines) {
-            if (!line.trim()) continue
-
-            const payload = JSON.parse(line)
-            
-            if (payload.event === 'error') {
-              throw new Error(payload.message || '流式生成失败')
-            }
-
-            /*
-            if (payload.event === 'ask_chunk') {
-              this.rawAskBuffer += payload.content || ''
-              const partialQuestion = this.extractQuestionFromBuffer(this.rawAskBuffer)
-
-              if (partialQuestion && partialQuestion.length > this.targetQuestionText.length) {
-                this.targetQuestionText = partialQuestion
-                this.ensurePlaybackRunning()
-              }
-            }
-
-            if (payload.event === 'draft_report_start') {
-              this.resetAskStreamingState()
-              this.interactionMode = 'draft_report'
-              this.draftReport = ''
-            }
-
-            if (payload.event === 'draft_report_delta') {
-              this.interactionMode = 'draft_report'
-              this.draftReport += payload.content || ''
-            }
-
-            if (payload.event === 'draft_report_done') {
-              this.interactionMode = 'draft_report'
-              this.draftReport = payload.data?.report || this.draftReport
-            }
-
-            if (payload.event === 'ask_done') {
-              const data = payload.data || {}
-              const finalQuestion =
-                data.question ||
-                this.targetQuestionText ||
-                this.streamedQuestionStableText + this.streamedQuestionPendingChar ||
-                '未返回问题内容'
-
-              this.interactionMode = 'ask'
-              this.currentQuestion = finalQuestion
-              this.questionType = data.question_type || 'text'
-              this.questionOptions = Array.isArray(data.options) ? data.options : []
-              this.answerText = ''
-              this.selectedOption = ''
-              this.round += 1
-              this.questionRenderKey += 1
-
-              if (finalQuestion.length > this.targetQuestionText.length) {
-                this.targetQuestionText = finalQuestion
-              }
-
-              this.askStreamComplete = true
-              this.ensurePlaybackRunning()
-            }
-            */
-
-            if (payload.event === 'chunk') {
-  this.rawAskBuffer += payload.content || ''
-  const partialQuestion = this.extractQuestionFromBuffer(this.rawAskBuffer)
-
-  if (partialQuestion && partialQuestion.length > this.targetQuestionText.length) {
-    this.targetQuestionText = partialQuestion
-    this.ensurePlaybackRunning()
-  }
-}
-
-if (payload.event === 'done') {
-  const data = payload.data || {}
-  const finalQuestion =
-    data.question ||
-    this.targetQuestionText ||
-    this.streamedQuestionStableText + this.streamedQuestionPendingChar ||
-    '未返回问题内容'
-
-  this.interactionMode = 'ask'
-  this.currentQuestion = finalQuestion
-  this.questionType = data.question_type === 'single_choice' ? 'single_choice' : 'text'
-  this.questionOptions = Array.isArray(data.options) ? data.options : []
-  this.answerText = ''
-  this.selectedOption = ''
-  this.round += 1
-  this.questionRenderKey += 1
-
-  if (finalQuestion.length > this.targetQuestionText.length) {
-    this.targetQuestionText = finalQuestion
-  }
-
-  this.askStreamComplete = true
-  this.ensurePlaybackRunning()
-}
-          }
-        }
+        await this.readNdjsonStream(response)
       } catch (error) {
         this.errorMessage = `获取下一题失败：${error.message}`
         this.finishAskStreaming()
       }
     },
 
+    async summarizeNow() {
+      if (this.isQuestionBusy || !this.answerRevealReady || !this.canSummarize) return
+
+      this.requestingSummary = true
+      this.errorMessage = ''
+      this.interactionMode = 'stage_transition'
+
+      try {
+        const response = await fetch('http://127.0.0.1:8002/api/advice/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            type: 'self_value',
+            mode: 'self_value',
+            stage: 'summarize',
+            round: this.round,
+            qa_history: this.qaHistory
+          })
+        })
+
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.error || '生成阶段整理失败')
+        }
+
+        this.applyDraftReportResult(data)
+      } catch (error) {
+        this.requestingSummary = false
+        this.interactionMode = 'ask'
+        this.errorMessage = `生成阶段整理失败：${error.message}`
+      }
+    },
+
     continueDeeper() {
-      if (this.submitting) return
+      if (this.isQuestionBusy) return
       this.interactionMode = 'ask'
       this.draftReport = ''
+      this.draftReportMain = ''
+      this.draftReportNextAction = ''
+      this.errorMessage = ''
+      this.answerRevealReady = true
     },
 
     async acceptDraftReport() {
-      if (this.submitting) return
+      if (this.isQuestionBusy) return
 
-      this.submitting = true
-      const finalReport = this.draftReport || ''
+      this.savingDraftReport = true
+      const finalReport = this.draftReportMain || this.draftReport || ''
 
       this.$store.commit('set_self_value_report', finalReport)
 
@@ -545,15 +880,13 @@ if (payload.event === 'done') {
 
         this.$router.push({
           path: '/self-value/report',
-          query: {
-            id: reportId
-          }
+          query: { id: reportId }
         })
       } catch (error) {
         console.error('保存报告失败：', error.message)
         this.$router.push('/self-value/report')
       } finally {
-        this.submitting = false
+        this.savingDraftReport = false
       }
     }
   },
@@ -563,10 +896,18 @@ if (payload.event === 'done') {
       window.cancelAnimationFrame(this.playbackRafId)
       this.playbackRafId = null
     }
+    this.clearAnswerRevealTimer()
   },
 
   mounted() {
     this.tickQuestionPlayback = this.tickQuestionPlayback.bind(this)
+
+    if (this.prefetchedFirstQuestionReady && this.prefetchedFirstQuestion) {
+      this.applyFirstQuestion(this.prefetchedFirstQuestion)
+      this.$store.commit('reset_first_question')
+      return
+    }
+
     this.fetchFirstQuestion()
   }
 }
@@ -598,8 +939,8 @@ if (payload.event === 'done') {
 }
 
 .questions-page--thinking .questions-page-bg {
-  opacity: 0.48;
-  transform: scale(1.03);
+  opacity: 0.45;
+  transform: scale(1.015);
 }
 
 .questions-bg-a {
@@ -625,16 +966,12 @@ if (payload.event === 'done') {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 48px 20px;
+  padding: 26px 20px 28px;
 }
 
 .questions-container {
   width: 100%;
   max-width: 760px;
-}
-
-.questions-head {
-  margin-bottom: 16px;
 }
 
 .questions-kicker {
@@ -650,16 +987,31 @@ if (payload.event === 'done') {
 
 .questions-main {
   position: relative;
+  display: grid;
+  grid-template-rows: 210px 300px;
+  gap: 10px;
+}
+
+.questions-main--transition {
+  display: block;
+}
+
+.question-stage {
+  height: 210px;
 }
 
 .question-title-wrap {
   position: relative;
-  padding: 20px 56px 18px;
-  transition: transform 0.3s ease, opacity 0.3s ease;
+  height: 210px;
+  padding: 12px 48px 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  transition: transform 0.25s ease;
 }
 
 .question-title-wrap--thinking {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
 .question-title-wrap::before,
@@ -673,23 +1025,23 @@ if (payload.event === 'done') {
     sans-serif;
   line-height: 1;
   font-weight: 300;
-  color: rgba(177, 168, 154, 0.16);
+  color: rgba(177, 168, 154, 0.14);
   pointer-events: none;
   z-index: 0;
 }
 
 .question-title-wrap::before {
   content: "“";
-  top: 14px;
-  left: 8px;
-  font-size: 64px;
+  top: 10px;
+  left: 6px;
+  font-size: 56px;
 }
 
 .question-title-wrap::after {
   content: "”";
-  right: 8px;
-  bottom: 18px;
-  font-size: 64px;
+  right: 6px;
+  bottom: 8px;
+  font-size: 56px;
 }
 
 .question-title-wrap > * {
@@ -700,25 +1052,46 @@ if (payload.event === 'done') {
 .questions-title {
   margin: 0;
   max-width: 720px;
-  min-height: 3.4em;
-  font-size: 32px;
-  line-height: 1.68;
-  font-weight: 430;
-  letter-spacing: -0.005em;
+  min-height: 5.2em;
+  overflow: hidden;
   color: #26261f;
-  word-break: normal;
+  word-break: break-word;
   overflow-wrap: break-word;
   text-align: left;
+  transition: font-size 0.2s ease, line-height 0.2s ease;
+}
+
+.questions-title--short {
+  font-size: 31px;
+  line-height: 1.62;
+  font-weight: 430;
+  letter-spacing: -0.005em;
+}
+
+.questions-title--medium {
+  font-size: 29px;
+  line-height: 1.66;
+  font-weight: 430;
+  letter-spacing: -0.005em;
+}
+
+.questions-title--long {
+  font-size: 27px;
+  line-height: 1.7;
+  font-weight: 425;
+  letter-spacing: 0;
 }
 
 .stream-char {
   color: rgba(38, 38, 31, 0.08);
-  animation: streamCharFade 30020ms ease-out forwards;
+  animation: streamCharFade 420ms ease-out forwards;
 }
 
 .questions-hint {
-  margin: 16px auto 0;
+  margin: 10px auto 0;
   max-width: 600px;
+  min-height: 1.95em;
+  overflow: hidden;
   font-size: 15px;
   line-height: 1.95;
   letter-spacing: 0.02em;
@@ -732,45 +1105,173 @@ if (payload.event === 'done') {
 }
 
 .questions-status {
-  margin-top: 28px;
+  margin-top: 4px;
   font-size: 15px;
   line-height: 1.8;
   color: #7b7469;
 }
 
+.answer-stage {
+  height: 300px;
+}
+
 .question-answer-area {
-  transition: opacity 0.32s ease, transform 0.32s ease, filter 0.32s ease;
+  height: 300px;
+  transition: opacity 0.28s ease, filter 0.28s ease;
 }
 
 .question-answer-area--thinking {
-  opacity: 0.36;
-  transform: translateY(8px);
-  filter: blur(1px) saturate(0.92);
+  opacity: 0.56;
+  filter: blur(1px) saturate(0.9);
   pointer-events: none;
 }
 
+.question-side-link-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+  margin-bottom: 6px;
+}
+
+.question-side-link {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 4px 10px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #8b8276;
+  cursor: pointer;
+  transition:
+    color 0.18s ease,
+    opacity 0.18s ease,
+    background-color 0.18s ease;
+  position: relative;
+}
+
+.question-side-link:hover {
+  color: #645c52;
+  background: rgba(210, 170, 110, 0.08);
+}
+
+.question-side-link:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: transparent;
+}
+.question-side-link:hover {
+  color: #645c52;
+}
+
+.question-side-link:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.question-side-link__icon {
+  width: 15px;
+  height: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.question-side-link__icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.question-side-link__text {
+  position: relative;
+  top: 0.5px;
+}
+
+
+.question-side-link-row--intro .question-side-link {
+  animation: summarizeLinkIntroBg 1.85s ease-out 1;
+}
+
+.question-side-link-row--intro .question-side-link__icon {
+  animation: summarizeIconIntroBg 1.85s ease-out 1;
+}
+
+@keyframes summarizeLinkIntroBg {
+  0% {
+    opacity: 0;
+    transform: translateY(3px);
+    color: #a79f94;
+    background-color: rgba(214, 160, 74, 0);
+    box-shadow: 0 0 0 rgba(214, 160, 74, 0);
+  }
+
+  28% {
+    opacity: 1;
+    transform: translateY(0);
+    color: #ffff00;
+    background-color: rgba(232, 191, 118, 0.3);
+    box-shadow: 0 0 0 6px rgba(232, 191, 118, 0.08);
+  }
+
+  52% {
+    color: #6a5840;
+    background-color: rgba(232, 191, 118, 0.2);
+    box-shadow: 0 0 0 3px rgba(232, 191, 118, 0.04);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    color: #8b8276;
+    background-color: rgba(214, 160, 74, 0);
+    box-shadow: 0 0 0 rgba(214, 160, 74, 0);
+  }
+}
+
+@keyframes summarizeIconIntroBg {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.72;
+  }
+
+  30% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+
 .question-input-wrap,
-.question-options-wrap,
-.draft-report-wrap {
-  margin-top: 32px;
+.question-options-wrap {
+  margin-top: 0;
 }
 
 .question-breath-wrap {
   position: relative;
-  border-radius: 30px;
+  border-radius: 28px;
 }
 
 .question-breath-wrap::before {
   content: '';
   position: absolute;
-  inset: -28px;
-  border-radius: 46px;
+  inset: -18px;
+  border-radius: 38px;
   background:
-    radial-gradient(circle at 18% 24%, rgba(182, 208, 255, 0.34), transparent 34%),
-    radial-gradient(circle at 82% 76%, rgba(255, 218, 229, 0.3), transparent 36%),
-    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.52), transparent 56%);
-  filter: blur(30px);
-  opacity: 0.9;
+    radial-gradient(circle at 18% 24%, rgba(182, 208, 255, 0.3), transparent 34%),
+    radial-gradient(circle at 82% 76%, rgba(255, 218, 229, 0.26), transparent 36%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.5), transparent 56%);
+  filter: blur(26px);
+  opacity: 0.84;
   z-index: 0;
   pointer-events: none;
   animation: localGlow 6.8s ease-in-out infinite;
@@ -783,20 +1284,20 @@ if (payload.event === 'done') {
 
 .question-textarea {
   width: 100%;
-  min-height: 248px;
-  padding: 24px 24px 22px;
+  height: 248px;
+  padding: 22px 22px 20px;
   border: 1px solid rgba(198, 190, 178, 0.56);
-  border-radius: 28px;
+  border-radius: 26px;
   background: rgba(255, 253, 250, 0.9);
   box-shadow:
     0 8px 30px rgba(54, 45, 33, 0.04),
     inset 0 1px 0 rgba(255, 255, 255, 0.46);
   backdrop-filter: blur(8px);
   font-size: 17px;
-  line-height: 1.95;
+  line-height: 1.9;
   color: #1f1c17;
   outline: none;
-  resize: vertical;
+  resize: none;
   transition: border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
 }
 
@@ -815,30 +1316,29 @@ if (payload.event === 'done') {
 .question-options {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
 .question-option {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 18px 20px;
+  padding: 16px 18px;
   border: 1px solid rgba(202, 194, 183, 0.6);
-  border-radius: 22px;
+  border-radius: 20px;
   background: rgba(255, 253, 250, 0.84);
   box-shadow: 0 6px 20px rgba(54, 45, 33, 0.03);
   cursor: pointer;
   transition:
     border-color 0.2s ease,
     background 0.2s ease,
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
+    box-shadow 0.2s ease,
+    opacity 0.2s ease;
 }
 
 .question-option:hover {
   border-color: rgba(171, 159, 143, 0.72);
   background: rgba(255, 253, 250, 0.96);
-  transform: translateY(-1px);
 }
 
 .question-option--active {
@@ -855,44 +1355,160 @@ if (payload.event === 'done') {
 .question-option span {
   display: block;
   font-size: 16px;
-  line-height: 1.85;
+  line-height: 1.78;
   color: #2a2620;
 }
 
-.draft-report-head {
-  margin-bottom: 10px;
+.question-answer-area--thinking .question-textarea,
+.question-answer-area--thinking .question-option {
+  background: rgba(250, 247, 242, 0.72);
+  border-color: rgba(198, 190, 178, 0.42);
+  box-shadow:
+    0 4px 18px rgba(54, 45, 33, 0.025),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
-.draft-report-box {
-  border: 1px solid rgba(198, 190, 178, 0.58);
+.transition-stage {
+  margin-bottom: 14px;
+}
+
+.transition-panel-wrap {
+  position: relative;
+  margin-top: 8px;
+}
+
+.transition-panel {
+  border: 1px solid rgba(198, 190, 178, 0.5);
   border-radius: 28px;
   padding: 26px 24px;
-  background: rgba(255, 253, 250, 0.92);
+  min-height: 110px;
+  background: rgba(255, 253, 250, 0.9);
   box-shadow:
     0 8px 30px rgba(54, 45, 33, 0.04),
     inset 0 1px 0 rgba(255, 255, 255, 0.42);
   backdrop-filter: blur(8px);
   font-size: 17px;
-  line-height: 2;
-  color: #1f1c17;
+  line-height: 1.9;
+  color: #524b42;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.report-page {
+  display: block;
+}
+
+.report-topline {
+  margin-bottom: 14px;
+}
+
+.report-hero {
+  margin-bottom: 22px;
+}
+
+.report-title {
+  min-height: auto;
+  margin: 0;
+  text-align:center
+}
+
+.report-subtitle {
+  margin: 12px 0 0;
+  max-width: 640px;
+  font-size: 15px;
+  line-height: 1.9;
+  color: #7f776c;
+  text-align: center;
+ 
+}
+
+.report-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.report-card {
+  position: relative;
+  border: 1px solid rgba(198, 190, 178, 0.56);
+  border-radius: 28px;
+  background: rgba(255, 253, 250, 0.92);
+  box-shadow:
+    0 8px 30px rgba(54, 45, 33, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(8px);
+  overflow: hidden;
+}
+
+.report-card--primary {
+  padding: 24px 24px 22px;
+}
+
+.report-card--secondary {
+  padding: 22px 24px 20px;
+}
+
+.report-card-head {
+  margin-bottom: 12px;
+}
+
+.report-card-kicker {
+  font-size: 13px;
+  line-height: 1.6;
+  letter-spacing: 0.06em;
+  color: #8f867a;
+}
+
+.report-card-body {
   white-space: pre-wrap;
+  word-break: break-word;
+  color: #201d18;
+  padding:0px 15px 15px;
+}
+
+.report-main-content {
+  font-size: 17px;
+  line-height: 2;
+  text-align:left;
+}
+
+.report-next-content {
+  font-size: 16px;
+  line-height: 1.95;
+  color: #4d473f;
+  text-align:left;
 }
 
 .questions-actions {
   display: flex;
+  justify-content: center;
+  align-items: center;
   gap: 12px;
-  flex-wrap: wrap;
-  margin-top: 30px;
+  flex-wrap: nowrap;
+  margin-top: 14px;
+  transition: opacity 0.28s ease, filter 0.28s ease;
+}
+
+.questions-actions--thinking {
+  opacity: 0.5;
+  filter: saturate(0.88);
 }
 
 .questions-actions--draft {
   margin-top: 24px;
 }
 
+.report-actions {
+  justify-content: center;
+  margin-top: 22px;
+}
+
 .question-btn {
   appearance: none;
   border-radius: 999px;
-  padding: 15px 26px;
+  padding: 14px 24px;
+  min-width: 132px;
   font-size: 15px;
   line-height: 1;
   letter-spacing: 0.01em;
@@ -939,10 +1555,15 @@ if (payload.event === 'done') {
 }
 
 .questions-error {
-  margin-top: 18px;
+  margin-top: 12px;
   font-size: 14px;
   line-height: 1.8;
   color: #b42318;
+  text-align: center;
+}
+
+.gray {
+  color: gray;
 }
 
 .thinking-caret {
@@ -955,175 +1576,213 @@ if (payload.event === 'done') {
   animation: caretBlink 1.05s steps(1, end) infinite;
 }
 
-.answer-fade-enter-active,
-.answer-fade-leave-active {
-  transition: opacity 0.28s ease, transform 0.28s ease;
-}
-
-.answer-fade-enter-from,
-.answer-fade-leave-to {
-  opacity: 0;
-  transform: translateY(10px);
-}
-
 @keyframes streamCharFade {
-  0% {
-    color: rgba(38, 38, 31, 0.05);
-  }
-  100% {
-    color: rgba(38, 38, 31, 1);
-  }
+  0% { color: rgba(38, 38, 31, 0.05); }
+  100% { color: rgba(38, 38, 31, 1); }
 }
 
 @keyframes localGlow {
-  0% {
-    opacity: 0.6;
-    transform: scale(0.985);
-  }
-  50% {
-    opacity: 0.92;
-    transform: scale(1.05);
-  }
-  100% {
-    opacity: 0.55;
-    transform: scale(0.985);
-  }
+  0% { opacity: 0.6; transform: scale(0.985); }
+  50% { opacity: 0.92; transform: scale(1.05); }
+  100% { opacity: 0.55; transform: scale(0.985); }
 }
 
 @keyframes caretBlink {
-  0%,
-  48% {
-    opacity: 1;
-  }
-  50%,
-  100% {
-    opacity: 0.18;
-  }
-}
-
-@media (max-width: 1024px) {
-  .questions-shell {
-    padding: 40px 24px;
-  }
-
-  .questions-title {
-    font-size: 31px;
-    line-height: 1.58;
-  }
-
-  .question-textarea,
-  .draft-report-box {
-    font-size: 16px;
-  }
+  0%, 48% { opacity: 1; }
+  50%, 100% { opacity: 0.18; }
 }
 
 @media (max-width: 768px) {
   .questions-shell {
     align-items: flex-start;
-    padding: 30px 18px 36px;
+    padding: 20px 16px 18px;
   }
 
-  .questions-container {
-    max-width: 100%;
+  .questions-main {
+    grid-template-rows: 188px 284px;
+    gap: 8px;
   }
 
-  .questions-head {
-    margin-bottom: 12px;
+  .question-stage,
+  .question-title-wrap {
+    height: 188px;
   }
 
   .question-title-wrap {
-    padding: 12px 30px 12px;
+    padding: 8px 26px 8px;
   }
 
   .question-title-wrap::before {
-    top: 12px;
+    top: 8px;
     left: 0;
-    font-size: 42px;
-    color: rgba(177, 168, 154, 0.12);
+    font-size: 40px;
   }
 
   .question-title-wrap::after {
     right: 0;
-    bottom: 4px;
-    font-size: 42px;
-    color: rgba(177, 168, 154, 0.12);
+    bottom: 2px;
+    font-size: 40px;
   }
 
   .questions-title {
-    max-width: 100%;
-    min-height: 3.6em;
+    min-height: 5.55em;
+  }
+
+  .questions-title--short {
     font-size: 26px;
-    line-height: 1.72;
-    letter-spacing: 0.01em;
-    font-weight: 430;
+    line-height: 1.66;
+  }
+
+  .questions-title--medium {
+    font-size: 25px;
+    line-height: 1.7;
+  }
+
+  .questions-title--long {
+    font-size: 23px;
+    line-height: 1.74;
   }
 
   .questions-hint {
-    margin-top: 14px;
+    margin-top: 8px;
     font-size: 14px;
     line-height: 1.82;
-    max-width: 100%;
   }
 
-  .question-input-wrap,
-  .question-options-wrap,
-  .draft-report-wrap {
-    margin-top: 24px;
+  .answer-stage,
+  .question-answer-area {
+    height: 284px;
   }
 
   .question-textarea {
-    min-height: 220px;
-    padding: 20px 18px 18px;
-    border-radius: 24px;
+    height: 228px;
     font-size: 16px;
-    line-height: 1.9;
+    line-height: 1.88;
+    padding: 18px 18px 16px;
+    border-radius: 24px;
   }
 
   .question-option {
-    padding: 16px 16px;
+    padding: 15px 16px;
     border-radius: 18px;
   }
 
   .question-option span {
     font-size: 15px;
-    line-height: 1.78;
+    line-height: 1.74;
   }
 
-  .draft-report-box {
+  .question-side-link-row {
+    margin-top: 8px;
+    margin-bottom: 4px;
+  }
+
+  .question-side-link {
+    font-size: 12px;
+    gap: 6px;
+    padding:4px 8px;
+  }
+
+  .question-side-link__icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  .transition-panel {
+    min-height: 96px;
     padding: 22px 18px;
-    border-radius: 24px;
+    font-size: 16px;
+  }
+
+  .report-subtitle {
+    font-size: 14px;
+    line-height: 1.82;
+  }
+
+  .report-card--primary,
+  .report-card--secondary {
+    padding: 20px 18px 18px;
+  }
+
+  .report-main-content {
     font-size: 16px;
     line-height: 1.92;
   }
 
+  .report-next-content {
+    font-size: 15px;
+    line-height: 1.86;
+  }
+
   .questions-actions {
-    flex-direction: column;
-    margin-top: 24px;
+    margin-top: 12px;
+    gap: 10px;
   }
 
   .question-btn {
-    width: 100%;
-    padding: 15px 20px;
+    min-width: 0;
+    width: calc(50% - 5px);
+    padding: 14px 12px;
+  }
+
+  .report-actions .question-btn {
+    width: calc(50% - 5px);
   }
 
   .questions-page-bg {
-    filter: blur(78px);
+    filter: blur(74px);
     opacity: 0.3;
   }
 }
 
 @media (max-width: 430px) {
-  .questions-title {
-    font-size: 24px;
-    line-height: 1.62;
+  .questions-main {
+    grid-template-rows: 180px 270px;
   }
 
-  .questions-kicker {
+  .question-stage,
+  .question-title-wrap {
+    height: 180px;
+  }
+
+  .questions-title--short {
+    font-size: 24px;
+  }
+
+  .questions-title--medium {
+    font-size: 23px;
+  }
+
+  .questions-title--long {
+    font-size: 22px;
+  }
+
+  .questions-kicker,
+  .report-card-kicker {
     font-size: 12px;
   }
 
+  .answer-stage,
+  .question-answer-area {
+    height: 270px;
+  }
+
   .question-textarea {
-    min-height: 190px;
+    height: 214px;
+  }
+
+  .transition-panel {
+    min-height: 88px;
+  }
+
+  .question-btn,
+  .report-actions .question-btn {
+    width: 100%;
+  }
+
+  .questions-actions,
+  .report-actions {
+    flex-direction: column;
   }
 }
 </style>
