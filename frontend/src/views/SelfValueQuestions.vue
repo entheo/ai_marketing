@@ -13,139 +13,50 @@
       <div class="questions-layout">
         <div class="questions-container">
           <section class="questions-main">
-            <div class="question-stage">
+            <div class="chat-thread">
               <div
-                class="question-title-wrap"
-                :class="{ 'question-title-wrap--thinking': isQuestionBusy }"
+                v-for="item in dialogItems"
+                :key="item.id"
+                class="chat-msg"
+                :class="[
+                  item.role === 'user' ? 'chat-msg--user' : 'chat-msg--assistant'
+                ]"
               >
-                <h1 class="questions-title" :class="questionVisualSizeClass">
-                  <template v-if="requestingQuestion && !hasAnyStreamedQuestion">
-                    <span class="gray">思考…</span><span class="thinking-caret"></span>
-                  </template>
-
-                  <template v-else-if="hasAnyStreamedQuestion">
-                    <span>{{ streamedQuestionStableText }}</span>
-                    <span
-                      v-if="streamedQuestionPendingChar"
-                      class="stream-char"
-                    >{{ streamedQuestionPendingChar }}</span>
-                    <span class="thinking-caret"></span>
-                  </template>
-
-                  <template v-else>
-                    {{ currentQuestion || '' }}
-                  </template>
-                </h1>
-
-                <p v-if="!loading" class="questions-hint">
-                  {{ questionHintText }}
-                </p>
-              </div>
-
-              <div v-if="loading" class="questions-status">
-                正在请求问题……
-              </div>
-            </div>
-
-            <div class="answer-stage">
-              <div
-                class="question-answer-area"
-                :class="{ 'question-answer-area--thinking': isAnswerDimmed }"
-              >
-                <div
-                  v-if="questionType === 'text'"
-                  class="question-breath-wrap question-input-wrap"
-                >
-                  <textarea
-                    v-model="answerText"
-                    class="question-textarea"
-                    placeholder="在这里慢慢写下你的想法。"
-                    :disabled="isQuestionBusy || !answerRevealReady"
-                  ></textarea>
+                <div class="chat-msg__role">
+                  {{ item.role === 'user' ? '你' : '助手' }}
                 </div>
-
-                <div
-                  v-else-if="questionType === 'single_choice'"
-                  class="question-breath-wrap question-options-wrap"
-                >
-                  <div class="question-options">
-                    <label
-                      v-for="(option, index) in questionOptions"
-                      :key="index"
-                      class="question-option"
-                      :class="{ 'question-option--active': selectedOption === option }"
-                    >
-                      <input
-                        v-model="selectedOption"
-                        type="radio"
-                        name="question-option"
-                        :value="option"
-                        :disabled="isQuestionBusy || !answerRevealReady"
-                      />
-                      <span>{{ option }}</span>
-                    </label>
-                  </div>
+                <div class="chat-msg__text">{{ item.text }}</div>
+              </div>
+              <div
+                v-if="requestingQuestion"
+                class="chat-msg chat-msg--assistant chat-msg--streaming"
+              >
+                <div class="chat-msg__role">助手</div>
+                <div class="chat-msg__text">
+                  {{ streamingAssistantText || '思考中…' }}
                 </div>
               </div>
-            </div>
-
-            <div
-              v-if="showStageInsightLink"
-              class="question-side-link-row question-side-link-row--intro"
-            >
-              <button
-                class="question-side-link"
-                type="button"
-                :disabled="isQuestionBusy"
-                @click="openStageDrawer"
-              >
-                <span class="question-side-link__icon" aria-hidden="true">
-                  <svg viewBox="0 0 20 20" fill="none">
-                    <path
-                      d="M4.5 10h11"
-                      stroke="currentColor"
-                      stroke-width="1.4"
-                      stroke-linecap="round"
-                    />
-                    <path
-                      d="M10 4.5l5.5 5.5L10 15.5"
-                      stroke="currentColor"
-                      stroke-width="1.4"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                </span>
-                <span class="question-side-link__text">
-                  {{ stageInsightLinkText }}
-                </span>
-              </button>
             </div>
 
             <div v-if="errorMessage" class="questions-error">
               {{ errorMessage }}
             </div>
 
-            <div
-              class="questions-actions"
-              :class="{ 'questions-actions--thinking': isAnswerDimmed }"
-            >
-              <button
-                class="question-btn question-btn--ghost"
-                type="button"
-                :disabled="isQuestionBusy || !answerRevealReady"
-                @click="goBack"
-              >
-                返回上一页
-              </button>
-
+            <div class="chat-composer">
+              <textarea
+                v-model="answerText"
+                class="chat-composer__input"
+                placeholder="继续说说你的真实感受…"
+                :disabled="isQuestionBusy"
+                @keydown.enter.exact.prevent="goNext"
+              ></textarea>
               <button
                 class="question-btn question-btn--solid"
                 type="button"
-                :disabled="isQuestionBusy || !answerRevealReady"
+                :disabled="isQuestionBusy"
                 @click="goNext"
               >
-                {{ requestingQuestion ? '正在整理…' : '下一步' }}
+                {{ requestingQuestion ? '发送中…' : '发送' }}
               </button>
             </div>
           </section>
@@ -339,7 +250,9 @@ export default {
       loading: true,
       errorMessage: '',
       currentQuestion: '',
+      currentMainDisplayText: '',
       currentQuestionLengthHint: 'medium',
+      dialogItems: [],
       questionType: 'text',
       questionOptions: [],
       answerText: '',
@@ -360,6 +273,7 @@ export default {
       askStreamComplete: false,
       streamedQuestionStableText: '',
       streamedQuestionPendingChar: '',
+      streamingAssistantText: '',
       playbackRafId: null,
       playbackLastTs: 0,
       playbackAccumulator: 0,
@@ -429,7 +343,7 @@ export default {
       if (this.hasAnyStreamedQuestion) {
         return this.targetQuestionText || (this.streamedQuestionStableText + this.streamedQuestionPendingChar)
       }
-      return this.currentQuestion || ''
+      return this.currentMainDisplayText || this.currentQuestion || ''
     },
 
     activeQuestionLengthHint() {
@@ -478,11 +392,7 @@ export default {
     },
 
     showStageInsightLink() {
-      return (
-        this.answerRevealReady &&
-        !this.isQuestionBusy &&
-        this.hasUnreadStageUpdate
-      )
+      return false
     },
 
     stageInsightLinkText() {
@@ -508,6 +418,27 @@ export default {
   },
 
   methods: {
+    appendDialogItem(role, text) {
+      const normalizedRole = role === 'user' ? 'user' : 'assistant'
+      const normalizedText = String(text || '').trim()
+      if (!normalizedText) return
+
+      const prev = this.dialogItems[this.dialogItems.length - 1]
+      if (prev && prev.role === normalizedRole && prev.text === normalizedText) {
+        return
+      }
+
+      this.dialogItems.push({
+        id: `dialog_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        role: normalizedRole,
+        text: normalizedText
+      })
+
+      if (this.dialogItems.length > 14) {
+        this.dialogItems = this.dialogItems.slice(-14)
+      }
+    },
+
     triggerStageInlineFlash() {
       if (this.stageInlineFlashTimer) {
         clearTimeout(this.stageInlineFlashTimer)
@@ -555,7 +486,7 @@ export default {
     },
 
     bindQuestionMetaFromMessage(message, fallbackQuestion = '') {
-      const finalQuestion = this.extractMessageText(message) || fallbackQuestion || ''
+      const finalQuestion = this.extractQuestionText(message) || fallbackQuestion || ''
       this.currentQuestion = finalQuestion
       this.currentQuestionLengthHint =
         message?.question_length_hint || this.inferQuestionLengthHint(finalQuestion)
@@ -569,16 +500,38 @@ export default {
       this.questionOptions = nextOptions
     },
 
-    extractMessageText(message) {
+    bindMainDisplayTextFromMessage(message, fallbackText = '') {
+      this.currentMainDisplayText = this.extractMainDisplayText(message) || fallbackText || ''
+    },
+
+    extractQuestionText(message) {
       if (!message || typeof message !== 'object') return ''
       return (
+        message.question ||
         message.text ||
         message.content ||
         message.display_text ||
-        message.question ||
         message.message ||
         ''
       )
+    },
+
+    extractMainDisplayText(message) {
+      if (!message || typeof message !== 'object') return ''
+      return (
+        message.text ||
+        message.message ||
+        message.content ||
+        message.summary ||
+        message.report ||
+        message.next_action ||
+        message.question ||
+        ''
+      )
+    },
+
+    extractMessageText(message) {
+      return this.extractQuestionText(message)
     },
 
     extractMessageQuestionType(message) {
@@ -607,10 +560,15 @@ export default {
       this.loading = false
       this.errorMessage = ''
 
+      const firstQuestion = this.extractQuestionText(message) || '未返回问题内容'
+      const firstDisplayText = this.extractMainDisplayText(message) || firstQuestion
+
       this.bindQuestionMetaFromMessage(
         message,
-        this.extractMessageText(message) || '未返回问题内容'
+        firstQuestion
       )
+      this.bindMainDisplayTextFromMessage(message, firstDisplayText)
+      this.appendDialogItem('assistant', firstDisplayText)
       this.handleInsightSignals(data)
 
       if (stage) {
@@ -620,35 +578,25 @@ export default {
         })
       }
 
-      const firstQuestion = this.currentQuestion || '未返回问题内容'
       this.playLocalQuestion(
-        firstQuestion,
-        message?.question_length_hint || this.inferQuestionLengthHint(firstQuestion)
+        firstDisplayText,
+        message?.question_length_hint || this.inferQuestionLengthHint(firstDisplayText)
       )
     },
 
     playLocalQuestion(questionText, lengthHint = '') {
-      this.resetAskStreamingState()
-      this.answerRevealReady = false
+      this.currentMainDisplayText = questionText || ''
+      this.currentQuestionLengthHint = lengthHint || this.inferQuestionLengthHint(questionText)
       this.requestingQuestion = false
-      this.playingQuestion = true
-      this.targetQuestionText = questionText || ''
-      this.targetQuestionLengthHint = lengthHint || this.inferQuestionLengthHint(questionText)
-      this.lockedStreamingLengthHint = this.targetQuestionLengthHint || 'medium'
-      this.askStreamComplete = true
-      this.ensurePlaybackRunning()
+      this.playingQuestion = false
+      this.answerRevealReady = true
     },
 
     getCurrentAnswer() {
-      return this.questionType === 'single_choice'
-        ? this.selectedOption
-        : this.answerText.trim()
+      return this.answerText.trim()
     },
 
     validateCurrentAnswer(answer) {
-      if (this.questionType === 'single_choice') {
-        return !!answer
-      }
       return !!String(answer || '').trim()
     },
 
@@ -765,32 +713,32 @@ export default {
 
     applyAskMessageDone(data) {
       const message = data?.message || data || {}
-      const finalQuestion =
-        this.extractMessageText(message) ||
+      const finalQuestion = this.extractQuestionText(message) || this.currentQuestion || ''
+      const finalDisplayText =
+        this.extractMainDisplayText(message) ||
         this.targetQuestionText ||
         (this.streamedQuestionStableText + this.streamedQuestionPendingChar) ||
-        '未返回问题内容'
+        finalQuestion ||
+        '未返回内容'
 
       this.bindQuestionMetaFromMessage(
-        { ...message, text: finalQuestion },
+        { ...message, question: finalQuestion },
         finalQuestion
       )
+      this.bindMainDisplayTextFromMessage(
+        { ...message, text: finalDisplayText },
+        finalDisplayText
+      )
+      this.appendDialogItem('assistant', finalDisplayText)
 
       this.round += 1
-      this.targetQuestionText = finalQuestion
-      this.targetQuestionLengthHint =
-        message?.question_length_hint || this.inferQuestionLengthHint(finalQuestion)
-
-      if (!this.lockedStreamingLengthHint) {
-        this.lockedStreamingLengthHint = this.targetQuestionLengthHint || 'medium'
-      }
-
-      this.currentQuestionLengthHint = this.lockedStreamingLengthHint
-      this.askStreamComplete = true
-      this.playingQuestion = true
-      this.answerRevealReady = false
+      this.currentQuestionLengthHint =
+        message?.question_length_hint || this.inferQuestionLengthHint(finalDisplayText)
+      this.requestingQuestion = false
+      this.playingQuestion = false
+      this.streamingAssistantText = ''
+      this.answerRevealReady = true
       this.handleInsightSignals(data)
-      this.ensurePlaybackRunning()
     },
 
     handleInsightSignals(payload) {
@@ -893,23 +841,16 @@ export default {
       }
 
       if (payload.event === 'message_chunk') {
-        const rawChunk =
-          String(payload?.raw || '') ||
-          String(payload?.content || '') ||
-          String(payload?.delta || '')
+        this.requestingQuestion = true
+        const chunkText = String(
+          payload?.delta ||
+          payload?.content ||
+          payload?.message?.delta ||
+          ''
+        )
 
-        if (rawChunk) {
-          this.rawAskBuffer += rawChunk
-        }
-
-        const partialQuestion =
-          this.extractPartialQuestionText(payload) ||
-          this.extractQuestionFromJsonText(this.rawAskBuffer)
-
-        if (partialQuestion && partialQuestion.length >= this.targetQuestionText.length) {
-          this.targetQuestionText = partialQuestion
-          this.playingQuestion = true
-          this.ensurePlaybackRunning()
+        if (chunkText && !chunkText.trim().startsWith('{')) {
+          this.streamingAssistantText += chunkText
         }
         return
       }
@@ -1000,27 +941,21 @@ export default {
     },
 
     async goNext() {
-      if (this.isQuestionBusy || !this.answerRevealReady) return
+      if (this.isQuestionBusy) return
 
       const currentAnswer = this.getCurrentAnswer()
 
       if (!this.validateCurrentAnswer(currentAnswer)) {
-        this.errorMessage = this.questionType === 'single_choice'
-          ? '请先选择一个选项。'
-          : '请先输入你的回答。'
+        this.errorMessage = '请先输入你的回答。'
         return
       }
 
       this.requestingQuestion = true
       this.playingQuestion = false
-      this.answerRevealReady = false
+      this.answerRevealReady = true
+      this.streamingAssistantText = ''
       this.errorMessage = ''
       this.resetAskStreamingState()
-      this.streamedQuestionStableText = ''
-      this.streamedQuestionPendingChar = ''
-      this.targetQuestionText = ''
-      this.rawAskBuffer = ''
-      this.lockedStreamingLengthHint = 'medium'
 
       this.qaHistory.push({
         round: this.round,
@@ -1029,6 +964,7 @@ export default {
         options: this.questionType === 'single_choice' ? [...this.questionOptions] : [],
         answer: currentAnswer
       })
+      this.appendDialogItem('user', currentAnswer)
 
       try {
         const response = await fetch('http://127.0.0.1:8002/api/advice/stream/', {
@@ -1659,6 +1595,73 @@ export default {
   display: grid;
   grid-template-rows: 210px 300px auto auto;
   gap: 10px;
+}
+
+.chat-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 520px;
+  overflow: auto;
+  padding: 8px 6px 10px;
+}
+
+.chat-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 92%;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(176, 164, 145, 0.24);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.chat-msg--assistant {
+  align-self: flex-start;
+}
+
+.chat-msg--user {
+  align-self: flex-end;
+  background: rgba(243, 236, 224, 0.66);
+}
+
+.chat-msg--streaming {
+  border-style: dashed;
+}
+
+.chat-msg__role {
+  font-size: 11px;
+  line-height: 1.2;
+  color: #9a927f;
+}
+
+.chat-msg__text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #3c3932;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.chat-composer {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.chat-composer__input {
+  width: 100%;
+  min-height: 72px;
+  max-height: 160px;
+  resize: vertical;
+  border: 1px solid rgba(176, 164, 145, 0.32);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 15px;
+  line-height: 1.55;
+  background: rgba(255, 255, 255, 0.84);
 }
 
 .question-stage {
