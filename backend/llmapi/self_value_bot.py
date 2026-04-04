@@ -110,25 +110,44 @@ class SelfValueBot:
             return False
 
         normalized = re.sub(r"\s+", "", text.lower())
-        # 仅将“明确、直接认可”视为确认，避免自然对话中的误判。
-        if len(normalized) > 40:
-            return False
         deny_tokens = (
-            "不是", "不对", "不太对", "没说中", "没感觉", "不认同", "不认可", "并不", "但是", "不过"
+            "不是", "不对", "不太对", "没说中", "没感觉", "不认同", "不认可", "并不", "但", "不过", "然而"
         )
         if any(token in normalized for token in deny_tokens):
             return False
 
         confirm_tokens = (
-            "是的", "对的", "没错", "说得对", "你说得准", "很准", "准确", "认同", "认可", "贴近", "就是这个"
+            "是的", "对的", "对", "没错", "说得对", "你说得准", "很准", "准确", "认同", "认可", "贴近", "就是这个", "确实", "说到点子上"
         )
-        return normalized in confirm_tokens or any(token in normalized for token in confirm_tokens)
+        return any(token in normalized for token in confirm_tokens)
 
     def _extract_candidate_insight(self, prompt_result: Dict[str, Any]) -> str:
         for key in ("candidate_insight", "insight"):
             value = str(prompt_result.get(key) or "").strip()
             if value:
                 return value
+
+        # 兼容当前 self_value 主链路：多数情况下只有 summary/question，没有显式 candidate_insight。
+        summary_text = str(prompt_result.get("summary") or "").strip()
+        if summary_text:
+            return summary_text
+
+        question_text = str(prompt_result.get("question") or "").strip()
+        if not question_text:
+            return ""
+
+        # 优先提取问句前的判断性短句，避免把整段问题当 insight。
+        parts = re.split(r"[。！？!?]", question_text)
+        for part in parts:
+            candidate = part.strip(" ，,；;：:")
+            if len(candidate) < 8:
+                continue
+            if "?" in candidate or "？" in candidate:
+                continue
+            if "你" not in candidate:
+                continue
+            return candidate
+
         return ""
 
     def _build_insight_signal(
