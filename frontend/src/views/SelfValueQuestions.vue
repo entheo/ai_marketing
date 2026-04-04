@@ -301,6 +301,22 @@
             </button>
           </div>
         </aside>
+
+        <aside class="insight-panel">
+          <h3 class="insight-panel__title">已留下来的</h3>
+          <div v-if="insightCards.length" class="insight-panel__list">
+            <div
+              v-for="item in insightCards"
+              :key="item.id"
+              class="insight-panel__item"
+            >
+              {{ item.text }}
+            </div>
+          </div>
+          <div v-else class="insight-panel__empty">
+            暂时还没有确认留下的内容
+          </div>
+        </aside>
       </div>
     </div>
 
@@ -330,6 +346,8 @@ export default {
       selectedOption: '',
       qaHistory: [],
       round: 1,
+      insightCards: [],
+      pendingInsightCandidate: null,
 
       requestingQuestion: false,
       playingQuestion: false,
@@ -593,6 +611,7 @@ export default {
         message,
         this.extractMessageText(message) || '未返回问题内容'
       )
+      this.handleInsightSignals(data)
 
       if (stage) {
         this.receiveStagePayload(stage, meta || {}, stageState, {
@@ -770,7 +789,33 @@ export default {
       this.askStreamComplete = true
       this.playingQuestion = true
       this.answerRevealReady = false
+      this.handleInsightSignals(data)
       this.ensurePlaybackRunning()
+    },
+
+    handleInsightSignals(payload) {
+      if (!payload || typeof payload !== 'object') return
+
+      const confirmedInsight = String(payload.confirmed_insight || '').trim()
+      if (confirmedInsight) {
+        const exists = this.insightCards.some(item => item.text === confirmedInsight)
+        if (!exists) {
+          this.insightCards.push({
+            id: `insight_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            text: confirmedInsight
+          })
+        }
+        this.pendingInsightCandidate = null
+      }
+
+      const candidateInsight = String(payload.candidate_insight || '').trim()
+      const candidateId = String(payload.candidate_id || '').trim()
+      if (candidateInsight && candidateId) {
+        this.pendingInsightCandidate = {
+          candidate_id: candidateId,
+          text: candidateInsight
+        }
+      }
     },
 
     extractQuestionFromJsonText(raw) {
@@ -995,7 +1040,8 @@ export default {
             round: this.round,
             answer: currentAnswer,
             qa_history: this.qaHistory,
-            stage_state: this.stageState
+            stage_state: this.stageState,
+            pending_insight_candidate: this.pendingInsightCandidate
           })
         })
 
@@ -1555,6 +1601,52 @@ export default {
 
 .questions-page--stage-open .questions-layout {
   grid-template-columns: minmax(0, 720px) minmax(320px, 380px);
+}
+
+.insight-panel {
+  position: fixed;
+  right: 22px;
+  top: 96px;
+  width: 260px;
+  padding: 14px 14px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(31, 32, 35, 0.08);
+  box-shadow: 0 10px 30px rgba(24, 26, 31, 0.08);
+  backdrop-filter: blur(8px);
+  z-index: 3;
+}
+
+.insight-panel__title {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: #2a2d35;
+}
+
+.insight-panel__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.insight-panel__item {
+  font-size: 13px;
+  line-height: 1.55;
+  color: #3b3f48;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: #f4f6fb;
+}
+
+.insight-panel__empty {
+  font-size: 12px;
+  color: #8d92a0;
+}
+
+@media (max-width: 1200px) {
+  .insight-panel {
+    display: none;
+  }
 }
 
 .questions-container {
