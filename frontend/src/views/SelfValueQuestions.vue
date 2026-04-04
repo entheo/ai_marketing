@@ -33,7 +33,7 @@
                   </template>
 
                   <template v-else>
-                    {{ currentQuestion || '' }}
+                    {{ currentMainDisplayText || currentQuestion || '' }}
                   </template>
                 </h1>
 
@@ -339,6 +339,7 @@ export default {
       loading: true,
       errorMessage: '',
       currentQuestion: '',
+      currentMainDisplayText: '',
       currentQuestionLengthHint: 'medium',
       questionType: 'text',
       questionOptions: [],
@@ -429,7 +430,7 @@ export default {
       if (this.hasAnyStreamedQuestion) {
         return this.targetQuestionText || (this.streamedQuestionStableText + this.streamedQuestionPendingChar)
       }
-      return this.currentQuestion || ''
+      return this.currentMainDisplayText || this.currentQuestion || ''
     },
 
     activeQuestionLengthHint() {
@@ -555,7 +556,7 @@ export default {
     },
 
     bindQuestionMetaFromMessage(message, fallbackQuestion = '') {
-      const finalQuestion = this.extractMessageText(message) || fallbackQuestion || ''
+      const finalQuestion = this.extractQuestionText(message) || fallbackQuestion || ''
       this.currentQuestion = finalQuestion
       this.currentQuestionLengthHint =
         message?.question_length_hint || this.inferQuestionLengthHint(finalQuestion)
@@ -569,16 +570,38 @@ export default {
       this.questionOptions = nextOptions
     },
 
-    extractMessageText(message) {
+    bindMainDisplayTextFromMessage(message, fallbackText = '') {
+      this.currentMainDisplayText = this.extractMainDisplayText(message) || fallbackText || ''
+    },
+
+    extractQuestionText(message) {
       if (!message || typeof message !== 'object') return ''
       return (
+        message.question ||
         message.text ||
         message.content ||
         message.display_text ||
-        message.question ||
         message.message ||
         ''
       )
+    },
+
+    extractMainDisplayText(message) {
+      if (!message || typeof message !== 'object') return ''
+      return (
+        message.text ||
+        message.message ||
+        message.content ||
+        message.summary ||
+        message.report ||
+        message.next_action ||
+        message.question ||
+        ''
+      )
+    },
+
+    extractMessageText(message) {
+      return this.extractQuestionText(message)
     },
 
     extractMessageQuestionType(message) {
@@ -607,10 +630,14 @@ export default {
       this.loading = false
       this.errorMessage = ''
 
+      const firstQuestion = this.extractQuestionText(message) || '未返回问题内容'
+      const firstDisplayText = this.extractMainDisplayText(message) || firstQuestion
+
       this.bindQuestionMetaFromMessage(
         message,
-        this.extractMessageText(message) || '未返回问题内容'
+        firstQuestion
       )
+      this.bindMainDisplayTextFromMessage(message, firstDisplayText)
       this.handleInsightSignals(data)
 
       if (stage) {
@@ -620,10 +647,9 @@ export default {
         })
       }
 
-      const firstQuestion = this.currentQuestion || '未返回问题内容'
       this.playLocalQuestion(
-        firstQuestion,
-        message?.question_length_hint || this.inferQuestionLengthHint(firstQuestion)
+        firstDisplayText,
+        message?.question_length_hint || this.inferQuestionLengthHint(firstDisplayText)
       )
     },
 
@@ -765,21 +791,27 @@ export default {
 
     applyAskMessageDone(data) {
       const message = data?.message || data || {}
-      const finalQuestion =
-        this.extractMessageText(message) ||
+      const finalQuestion = this.extractQuestionText(message) || this.currentQuestion || ''
+      const finalDisplayText =
+        this.extractMainDisplayText(message) ||
         this.targetQuestionText ||
         (this.streamedQuestionStableText + this.streamedQuestionPendingChar) ||
-        '未返回问题内容'
+        finalQuestion ||
+        '未返回内容'
 
       this.bindQuestionMetaFromMessage(
-        { ...message, text: finalQuestion },
+        { ...message, question: finalQuestion },
         finalQuestion
+      )
+      this.bindMainDisplayTextFromMessage(
+        { ...message, text: finalDisplayText },
+        finalDisplayText
       )
 
       this.round += 1
-      this.targetQuestionText = finalQuestion
+      this.targetQuestionText = finalDisplayText
       this.targetQuestionLengthHint =
-        message?.question_length_hint || this.inferQuestionLengthHint(finalQuestion)
+        message?.question_length_hint || this.inferQuestionLengthHint(finalDisplayText)
 
       if (!this.lockedStreamingLengthHint) {
         this.lockedStreamingLengthHint = this.targetQuestionLengthHint || 'medium'
