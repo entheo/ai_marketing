@@ -163,6 +163,11 @@
                 <h2 class="stage-drawer-title">
                   {{ stageView.stage_name || '当前阶段' }}
                 </h2>
+                <span
+                  v-if="stageInlineFlash"
+                  class="stage-inline-dot"
+                  aria-label="阶段内容有更新"
+                ></span>
                 <span v-if="stageMeta.current_maturity" class="stage-badge">
                   {{ stageMeta.current_maturity }}
                 </span>
@@ -186,6 +191,11 @@
             <p v-else class="stage-summary stage-summary--empty">
               这里会逐步沉淀当前阶段的发现与判断。
             </p>
+            <div class="stage-structure-line">
+              <span>发现 {{ stageStructure.findings }}</span>
+              <span>判断 {{ stageStructure.judgements }}</span>
+              <span>待确认 {{ stageStructure.candidates }}</span>
+            </div>
 
             <section class="stage-block">
               <div class="stage-block-head">发现</div>
@@ -365,7 +375,9 @@ export default {
       hasUnreadStageUpdate: false,
       stageUpdateCount: 0,
       lastStageDigest: '',
-      hasShownAnyStagePrompt: false
+      hasShownAnyStagePrompt: false,
+      stageInlineFlash: false,
+      stageInlineFlashTimer: null
     }
   },
 
@@ -460,10 +472,35 @@ export default {
         return '这里出现了一些新的阶段沉淀，点开看看'
       }
       return '刚刚形成了一些新的发现，点开看看'
+    },
+
+    stageStructure() {
+      const getLevel = (count, fullCount) => {
+        if (count <= 0) return '○'
+        if (count < fullCount) return '◐'
+        return '●'
+      }
+
+      return {
+        findings: getLevel(this.normalizedFindings.length, 3),
+        judgements: getLevel(this.normalizedJudgements.length, 2),
+        candidates: getLevel(this.normalizedCandidates.length, 2)
+      }
     }
   },
 
   methods: {
+    triggerStageInlineFlash() {
+      if (this.stageInlineFlashTimer) {
+        clearTimeout(this.stageInlineFlashTimer)
+      }
+      this.stageInlineFlash = true
+      this.stageInlineFlashTimer = setTimeout(() => {
+        this.stageInlineFlash = false
+        this.stageInlineFlashTimer = null
+      }, 1100)
+    },
+
     inferQuestionLengthHint(text) {
       const len = String(text || '').trim().length
       if (len <= 20) return 'short'
@@ -1056,6 +1093,135 @@ export default {
       }
     },
 
+    normalizeStageTexts(list, prefix) {
+      return this.normalizeStageList(list, prefix).map(item => item.text)
+    },
+
+    isStageTextSimilar(a, b) {
+      const left = String(a || '').trim()
+      const right = String(b || '').trim()
+      if (!left || !right) return false
+      if (left === right) return true
+      return left.includes(right) || right.includes(left)
+    },
+
+    pickWeakestIndex(list) {
+      let weakestIndex = -1
+      let weakestScore = Number.POSITIVE_INFINITY
+      list.forEach((text, idx) => {
+        const score = String(text || '').trim().length
+        if (score < weakestScore) {
+          weakestScore = score
+          weakestIndex = idx
+        }
+      })
+      return weakestIndex
+    },
+
+    mergeStageTextList(currentList, incomingList, cap) {
+      const merged = [...currentList]
+      for (const incoming of incomingList) {
+        if (!incoming) continue
+        if (merged.some(current => this.isStageTextSimilar(current, incoming))) {
+          continue
+        }
+
+        if (merged.length < cap) {
+          merged.push(incoming)
+          continue
+        }
+
+        const weakestIndex = this.pickWeakestIndex(merged)
+        if (weakestIndex < 0) continue
+        const weakest = merged[weakestIndex] || ''
+        const incomingScore = incoming.length
+        const weakestScore = weakest.length
+        if (incomingScore >= weakestScore + 6) {
+          merged.splice(weakestIndex, 1, incoming)
+        }
+      }
+      return merged.slice(0, cap)
+    },
+
+    shouldKeepCandidate(candidateText, hasJudgement) {
+      if (!hasJudgement) return false
+      return String(candidateText || '').trim().length >= 8
+    },
+
+    buildCandidateItemsFromTexts(texts) {
+      return texts.map((text, index) => ({
+        candidate_id: `candidate_${index}_${String(text || '').slice(0, 8)}`,
+        content: text
+      }))
+    },
+
+    mergeStageViewConservative(currentView, incomingView) {
+      const caps = {
+        findings: 3,
+        judgements: 2,
+        confirmation_candidates: 2
+      }
+
+      const currentFindings = this.normalizeStageTexts(currentView?.findings || [], 'finding')
+      const incomingFindings = this.normalizeStageTexts(incomingView?.findings || [], 'finding')
+      const nextFindings = this.mergeStageTextList(currentFindings, incomingFindings, caps.findings)
+
+      const currentJudgements = this.normalizeStageTexts(currentView?.judgements || [], 'judgement')
+      const incomingJudgements = this.normalizeStageTexts(incomingView?.judgements || [], 'judgement')
+      const nextJudgements = this.mergeStageTextList(currentJudgements, incomingJudgements, caps.judgements)
+
+      const currentCandidates = this.normalizeStageTexts(currentView?.confirmation_candidates || [], 'candidate')
+      const incomingCandidates = this.normalizeStageTexts(incomingView?.confirmation_candidates || [], 'candidate')
+      const mergedCandidateTexts = this.mergeStageTextList(
+        currentCandidates,
+        incomingCandidates,
+        caps.confirmation_candidates
+      )
+      const hasJudgement = nextJudgements.length > 0
+      const nextCandidateTexts = mergedCandidateTexts
+        .filter(text => this.shouldKeepCandidate(text, hasJudgement))
+        .slice(0, caps.confirmation_candidates)
+
+      const currentSummary = String(currentView?.stage_summary || '').trim()
+      const incomingSummary = String(incomingView?.stage_summary || '').trim()
+      let stageSummary = currentSummary
+      if (!stageSummary && incomingSummary) {
+        stageSummary = incomingSummary
+      } else if (incomingSummary && incomingSummary.length >= currentSummary.length + 8) {
+        stageSummary = incomingSummary
+      }
+
+      return {
+        stage_name: incomingView?.stage_name || currentView?.stage_name || '',
+        stage_summary: stageSummary,
+        findings: nextFindings.map((text, index) => ({ id: `finding_${index}`, content: text })),
+        judgements: nextJudgements.map((text, index) => ({ id: `judgement_${index}`, content: text })),
+        confirmation_candidates: this.buildCandidateItemsFromTexts(nextCandidateTexts)
+      }
+    },
+
+    hasEffectiveStageIncrement(currentView, nextView, currentMeta, nextMeta) {
+      const currentDigest = this.buildStageDigest(currentView, currentMeta)
+      const nextDigest = this.buildStageDigest(nextView, nextMeta)
+      if (currentDigest === nextDigest) return false
+
+      const currentScore =
+        this.normalizeStageTexts(currentView?.findings || [], 'finding').length * 2 +
+        this.normalizeStageTexts(currentView?.judgements || [], 'judgement').length * 3 +
+        this.normalizeStageTexts(currentView?.confirmation_candidates || [], 'candidate').length * 2 +
+        (String(currentView?.stage_summary || '').trim() ? 1 : 0) +
+        (currentMeta?.can_transition ? 1 : 0)
+
+      const nextScore =
+        this.normalizeStageTexts(nextView?.findings || [], 'finding').length * 2 +
+        this.normalizeStageTexts(nextView?.judgements || [], 'judgement').length * 3 +
+        this.normalizeStageTexts(nextView?.confirmation_candidates || [], 'candidate').length * 2 +
+        (String(nextView?.stage_summary || '').trim() ? 1 : 0) +
+        (nextMeta?.can_transition ? 1 : 0)
+
+      return nextScore >= currentScore
+    },
+
     buildStageDigest(stageView, meta) {
       const findings = this.normalizeStageList(stageView.findings, 'finding').map(i => i.text).join('|')
       const judgements = this.normalizeStageList(stageView.judgements, 'judgement').map(i => i.text).join('|')
@@ -1116,18 +1282,20 @@ export default {
     },
 
     receiveStagePayload(stage, meta = {}, stageState = null, options = {}) {
-      const stageView = this.buildStageView(stage)
-      const nextDigest = this.buildStageDigest(stageView, meta)
+      const rawStageView = this.buildStageView(stage)
 
       if (
-        !stageView.stage_name &&
-        !stageView.stage_summary &&
-        !stageView.findings.length &&
-        !stageView.judgements.length &&
-        !stageView.confirmation_candidates.length
+        !rawStageView.stage_name &&
+        !rawStageView.stage_summary &&
+        !rawStageView.findings.length &&
+        !rawStageView.judgements.length &&
+        !rawStageView.confirmation_candidates.length
       ) {
         return
       }
+
+      const stageView = this.mergeStageViewConservative(this.stageView, rawStageView)
+      const nextDigest = this.buildStageDigest(stageView, meta)
 
       if (options.forceCommit) {
         this.commitStagePayload(stageView, meta, stageState)
@@ -1138,7 +1306,19 @@ export default {
         return
       }
 
-      const shouldPrompt = !options.suppressPrompt && this.shouldPromptStageUpdate(stageView, meta)
+      if (this.stageDrawerOpen) {
+        this.commitStagePayload(stageView, meta, stageState)
+        this.hasUnreadStageUpdate = false
+        this.pendingStageView = null
+        this.pendingStageMeta = null
+        this.pendingStageState = null
+        this.triggerStageInlineFlash()
+        return
+      }
+
+      const shouldPrompt =
+        !options.suppressPrompt &&
+        this.hasEffectiveStageIncrement(this.stageView, stageView, this.stageMeta, meta)
 
       if (shouldPrompt) {
         this.pendingStageView = stageView
@@ -1153,8 +1333,6 @@ export default {
         this.hasShownAnyStagePrompt = true
         return
       }
-
-      this.commitStagePayload(stageView, meta, stageState)
     },
 
     openStageDrawer() {
@@ -1282,6 +1460,10 @@ export default {
       this.playbackRafId = null
     }
     this.clearAnswerRevealTimer()
+    if (this.stageInlineFlashTimer) {
+      clearTimeout(this.stageInlineFlashTimer)
+      this.stageInlineFlashTimer = null
+    }
     window.removeEventListener('resize', this.updateViewportMode)
   },
 
@@ -1844,6 +2026,15 @@ export default {
   white-space: nowrap;
 }
 
+.stage-inline-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #6f86a2;
+  box-shadow: 0 0 0 0 rgba(111, 134, 162, 0.45);
+  animation: stageInlinePulse 0.9s ease-out 1;
+}
+
 .stage-drawer-close {
   appearance: none;
   border: none;
@@ -1873,6 +2064,16 @@ export default {
 
 .stage-summary--empty {
   color: #938a7d;
+}
+
+.stage-structure-line {
+  margin: 0 0 14px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #8c8378;
 }
 
 .stage-block {
@@ -2111,6 +2312,21 @@ export default {
   100% {
     transform: scale(1);
     opacity: 1;
+  }
+}
+
+@keyframes stageInlinePulse {
+  0% {
+    transform: scale(0.92);
+    box-shadow: 0 0 0 0 rgba(111, 134, 162, 0.45);
+  }
+  65% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 7px rgba(111, 134, 162, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(111, 134, 162, 0);
   }
 }
 
