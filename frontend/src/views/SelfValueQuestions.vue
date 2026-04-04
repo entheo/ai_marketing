@@ -694,6 +694,10 @@ export default {
       )
       this.bindMainDisplayTextFromMessage(message, firstDisplayText)
 <<<<<<< ours
+<<<<<<< ours
+=======
+      this.appendDialogItem('assistant', firstDisplayText)
+>>>>>>> theirs
 =======
       this.appendDialogItem('assistant', firstDisplayText)
 >>>>>>> theirs
@@ -867,6 +871,10 @@ export default {
         finalDisplayText
       )
 <<<<<<< ours
+<<<<<<< ours
+=======
+      this.appendDialogItem('assistant', finalDisplayText)
+>>>>>>> theirs
 =======
       this.appendDialogItem('assistant', finalDisplayText)
 >>>>>>> theirs
