@@ -429,35 +429,11 @@ class PromptRunner:
         adapter: PromptAdapter,
     ) -> Dict[str, Any]:
         """
-        只在正常 continue 流程里处理“模型想总结，但当前不直接总结”的情况。
-        优先让模型二次改问，最后才兜底。
+        第一轮自然对话实验：
+        临时关闭 summary-like -> ask/clarify 的自动改写链路。
+        让模型原始 summary-like 输出直接透传。
         """
-        status = result.get("status", "")
-        round_num = self._safe_round(context)
-
-        if self._is_manual_summary_stage(context):
-            return result
-
-        if status not in self.SUMMARY_LIKE_STATUS:
-            return result
-
-        # 太早也不直接进总结，优先让模型重问
-        rewritten = self._rewrite_summary_to_followup_question(
-            adapter=adapter,
-            summary_like_result=result,
-            context=context,
-        )
-        if rewritten:
-            rewritten = self._normalize_result(rewritten)
-            rewritten = self._repair_shape(rewritten)
-            rewritten["can_summarize"] = round_num >= self.min_summary_round
-            return rewritten
-
-        # 最后兜底：只在重写失败时使用
-        return self._build_checkpoint_ask(
-            question="",
-            round_num=round_num,
-        )
+        return result
 
     def _basic_validate_response(self, result: Dict[str, Any]) -> Dict[str, Any]:
         """

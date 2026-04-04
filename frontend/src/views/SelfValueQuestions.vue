@@ -13,6 +13,23 @@
       <div class="questions-layout">
         <div class="questions-container">
           <section class="questions-main">
+            <div v-if="recentDialogItems.length" class="dialog-strip">
+              <div
+                v-for="item in recentDialogItems"
+                :key="item.id"
+                class="dialog-item"
+                :class="[
+                  item.role === 'user' ? 'dialog-item--user' : 'dialog-item--assistant',
+                  item.isFocus ? 'dialog-item--focus' : ''
+                ]"
+              >
+                <div class="dialog-item__role">
+                  {{ item.role === 'user' ? '你' : '助手' }}
+                </div>
+                <div class="dialog-item__text">{{ item.text }}</div>
+              </div>
+            </div>
+
             <div class="question-stage">
               <div
                 class="question-title-wrap"
@@ -33,7 +50,7 @@
                   </template>
 
                   <template v-else>
-                    {{ currentQuestion || '' }}
+                    {{ currentMainDisplayText || currentQuestion || '' }}
                   </template>
                 </h1>
 
@@ -339,7 +356,9 @@ export default {
       loading: true,
       errorMessage: '',
       currentQuestion: '',
+      currentMainDisplayText: '',
       currentQuestionLengthHint: 'medium',
+      dialogItems: [],
       questionType: 'text',
       questionOptions: [],
       answerText: '',
@@ -429,7 +448,7 @@ export default {
       if (this.hasAnyStreamedQuestion) {
         return this.targetQuestionText || (this.streamedQuestionStableText + this.streamedQuestionPendingChar)
       }
-      return this.currentQuestion || ''
+      return this.currentMainDisplayText || this.currentQuestion || ''
     },
 
     activeQuestionLengthHint() {
@@ -504,10 +523,47 @@ export default {
         judgements: getLevel(this.normalizedJudgements.length, 2),
         candidates: getLevel(this.normalizedCandidates.length, 2)
       }
+    },
+
+    recentDialogItems() {
+      const list = Array.isArray(this.dialogItems) ? this.dialogItems : []
+      const recent = list.slice(-6)
+      const lastAssistantIndex = (() => {
+        for (let i = recent.length - 1; i >= 0; i -= 1) {
+          if (recent[i]?.role === 'assistant') return i
+        }
+        return -1
+      })()
+
+      return recent.map((item, index) => ({
+        ...item,
+        isFocus: index === lastAssistantIndex
+      }))
     }
   },
 
   methods: {
+    appendDialogItem(role, text) {
+      const normalizedRole = role === 'user' ? 'user' : 'assistant'
+      const normalizedText = String(text || '').trim()
+      if (!normalizedText) return
+
+      const prev = this.dialogItems[this.dialogItems.length - 1]
+      if (prev && prev.role === normalizedRole && prev.text === normalizedText) {
+        return
+      }
+
+      this.dialogItems.push({
+        id: `dialog_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        role: normalizedRole,
+        text: normalizedText
+      })
+
+      if (this.dialogItems.length > 14) {
+        this.dialogItems = this.dialogItems.slice(-14)
+      }
+    },
+
     triggerStageInlineFlash() {
       if (this.stageInlineFlashTimer) {
         clearTimeout(this.stageInlineFlashTimer)
@@ -555,7 +611,7 @@ export default {
     },
 
     bindQuestionMetaFromMessage(message, fallbackQuestion = '') {
-      const finalQuestion = this.extractMessageText(message) || fallbackQuestion || ''
+      const finalQuestion = this.extractQuestionText(message) || fallbackQuestion || ''
       this.currentQuestion = finalQuestion
       this.currentQuestionLengthHint =
         message?.question_length_hint || this.inferQuestionLengthHint(finalQuestion)
@@ -569,16 +625,38 @@ export default {
       this.questionOptions = nextOptions
     },
 
-    extractMessageText(message) {
+    bindMainDisplayTextFromMessage(message, fallbackText = '') {
+      this.currentMainDisplayText = this.extractMainDisplayText(message) || fallbackText || ''
+    },
+
+    extractQuestionText(message) {
       if (!message || typeof message !== 'object') return ''
       return (
+        message.question ||
         message.text ||
         message.content ||
         message.display_text ||
-        message.question ||
         message.message ||
         ''
       )
+    },
+
+    extractMainDisplayText(message) {
+      if (!message || typeof message !== 'object') return ''
+      return (
+        message.text ||
+        message.message ||
+        message.content ||
+        message.summary ||
+        message.report ||
+        message.next_action ||
+        message.question ||
+        ''
+      )
+    },
+
+    extractMessageText(message) {
+      return this.extractQuestionText(message)
     },
 
     extractMessageQuestionType(message) {
@@ -607,10 +685,15 @@ export default {
       this.loading = false
       this.errorMessage = ''
 
+      const firstQuestion = this.extractQuestionText(message) || '未返回问题内容'
+      const firstDisplayText = this.extractMainDisplayText(message) || firstQuestion
+
       this.bindQuestionMetaFromMessage(
         message,
-        this.extractMessageText(message) || '未返回问题内容'
+        firstQuestion
       )
+      this.bindMainDisplayTextFromMessage(message, firstDisplayText)
+      this.appendDialogItem('assistant', firstDisplayText)
       this.handleInsightSignals(data)
 
       if (stage) {
@@ -620,10 +703,9 @@ export default {
         })
       }
 
-      const firstQuestion = this.currentQuestion || '未返回问题内容'
       this.playLocalQuestion(
-        firstQuestion,
-        message?.question_length_hint || this.inferQuestionLengthHint(firstQuestion)
+        firstDisplayText,
+        message?.question_length_hint || this.inferQuestionLengthHint(firstDisplayText)
       )
     },
 
@@ -765,21 +847,28 @@ export default {
 
     applyAskMessageDone(data) {
       const message = data?.message || data || {}
-      const finalQuestion =
-        this.extractMessageText(message) ||
+      const finalQuestion = this.extractQuestionText(message) || this.currentQuestion || ''
+      const finalDisplayText =
+        this.extractMainDisplayText(message) ||
         this.targetQuestionText ||
         (this.streamedQuestionStableText + this.streamedQuestionPendingChar) ||
-        '未返回问题内容'
+        finalQuestion ||
+        '未返回内容'
 
       this.bindQuestionMetaFromMessage(
-        { ...message, text: finalQuestion },
+        { ...message, question: finalQuestion },
         finalQuestion
       )
+      this.bindMainDisplayTextFromMessage(
+        { ...message, text: finalDisplayText },
+        finalDisplayText
+      )
+      this.appendDialogItem('assistant', finalDisplayText)
 
       this.round += 1
-      this.targetQuestionText = finalQuestion
+      this.targetQuestionText = finalDisplayText
       this.targetQuestionLengthHint =
-        message?.question_length_hint || this.inferQuestionLengthHint(finalQuestion)
+        message?.question_length_hint || this.inferQuestionLengthHint(finalDisplayText)
 
       if (!this.lockedStreamingLengthHint) {
         this.lockedStreamingLengthHint = this.targetQuestionLengthHint || 'medium'
@@ -1029,6 +1118,7 @@ export default {
         options: this.questionType === 'single_choice' ? [...this.questionOptions] : [],
         answer: currentAnswer
       })
+      this.appendDialogItem('user', currentAnswer)
 
       try {
         const response = await fetch('http://127.0.0.1:8002/api/advice/stream/', {
@@ -1659,6 +1749,54 @@ export default {
   display: grid;
   grid-template-rows: 210px 300px auto auto;
   gap: 10px;
+}
+
+.dialog-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 180px;
+  overflow: auto;
+  padding: 4px 6px 2px;
+}
+
+.dialog-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 92%;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(176, 164, 145, 0.24);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.dialog-item--assistant {
+  align-self: flex-start;
+}
+
+.dialog-item--user {
+  align-self: flex-end;
+  background: rgba(243, 236, 224, 0.66);
+}
+
+.dialog-item--focus {
+  border-color: rgba(124, 110, 90, 0.4);
+  box-shadow: 0 8px 18px rgba(106, 92, 75, 0.12);
+}
+
+.dialog-item__role {
+  font-size: 11px;
+  line-height: 1.2;
+  color: #9a927f;
+}
+
+.dialog-item__text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #3c3932;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .question-stage {
