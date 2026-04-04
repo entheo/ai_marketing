@@ -13,7 +13,7 @@
       <div class="questions-layout">
         <div class="questions-container">
           <section class="questions-main">
-            <div class="chat-thread">
+            <div ref="chatThread" class="chat-thread">
               <div
                 v-for="item in dialogItems"
                 :key="item.id"
@@ -33,7 +33,7 @@
               >
                 <div class="chat-msg__role">助手</div>
                 <div class="chat-msg__text">
-                  {{ streamingAssistantText || '思考中…' }}
+                  思考中…
                 </div>
               </div>
             </div>
@@ -437,6 +437,16 @@ export default {
       if (this.dialogItems.length > 14) {
         this.dialogItems = this.dialogItems.slice(-14)
       }
+
+      this.scrollChatToBottom()
+    },
+
+    scrollChatToBottom() {
+      this.$nextTick(() => {
+        const el = this.$refs.chatThread
+        if (!el) return
+        el.scrollTop = el.scrollHeight
+      })
     },
 
     triggerStageInlineFlash() {
@@ -842,16 +852,7 @@ export default {
 
       if (payload.event === 'message_chunk') {
         this.requestingQuestion = true
-        const chunkText = String(
-          payload?.delta ||
-          payload?.content ||
-          payload?.message?.delta ||
-          ''
-        )
-
-        if (chunkText && !chunkText.trim().startsWith('{')) {
-          this.streamingAssistantText += chunkText
-        }
+        this.scrollChatToBottom()
         return
       }
 
@@ -1592,8 +1593,9 @@ export default {
 
 .questions-main {
   position: relative;
-  display: grid;
-  grid-template-rows: 210px 300px auto auto;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 150px);
   gap: 10px;
 }
 
@@ -1601,9 +1603,12 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  height: 520px;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
-  padding: 8px 6px 10px;
+  padding: 8px 6px 120px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(130, 124, 113, 0.32) transparent;
 }
 
 .chat-msg {
@@ -1645,10 +1650,18 @@ export default {
 }
 
 .chat-composer {
+  position: sticky;
+  bottom: 0;
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 10px;
   align-items: end;
+  padding: 8px 0 2px;
+  background: linear-gradient(
+    to top,
+    rgba(246, 240, 232, 0.96) 72%,
+    rgba(246, 240, 232, 0)
+  );
 }
 
 .chat-composer__input {
@@ -1662,6 +1675,19 @@ export default {
   font-size: 15px;
   line-height: 1.55;
   background: rgba(255, 255, 255, 0.84);
+}
+
+.chat-thread::-webkit-scrollbar {
+  width: 8px;
+}
+
+.chat-thread::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-thread::-webkit-scrollbar-thumb {
+  background: rgba(132, 124, 110, 0.28);
+  border-radius: 999px;
 }
 
 .question-stage {
