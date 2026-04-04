@@ -693,14 +693,7 @@ export default {
         firstQuestion
       )
       this.bindMainDisplayTextFromMessage(message, firstDisplayText)
-<<<<<<< ours
-<<<<<<< ours
-=======
       this.appendDialogItem('assistant', firstDisplayText)
->>>>>>> theirs
-=======
-      this.appendDialogItem('assistant', firstDisplayText)
->>>>>>> theirs
       this.handleInsightSignals(data)
 
       if (stage) {
@@ -870,14 +863,7 @@ export default {
         { ...message, text: finalDisplayText },
         finalDisplayText
       )
-<<<<<<< ours
-<<<<<<< ours
-=======
       this.appendDialogItem('assistant', finalDisplayText)
->>>>>>> theirs
-=======
-      this.appendDialogItem('assistant', finalDisplayText)
->>>>>>> theirs
 
       this.round += 1
       this.targetQuestionText = finalDisplayText
