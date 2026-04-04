@@ -13,156 +13,50 @@
       <div class="questions-layout">
         <div class="questions-container">
           <section class="questions-main">
-            <div v-if="recentDialogItems.length" class="dialog-strip">
+            <div class="chat-thread">
               <div
-                v-for="item in recentDialogItems"
+                v-for="item in dialogItems"
                 :key="item.id"
-                class="dialog-item"
+                class="chat-msg"
                 :class="[
-                  item.role === 'user' ? 'dialog-item--user' : 'dialog-item--assistant',
-                  item.isFocus ? 'dialog-item--focus' : ''
+                  item.role === 'user' ? 'chat-msg--user' : 'chat-msg--assistant'
                 ]"
               >
-                <div class="dialog-item__role">
+                <div class="chat-msg__role">
                   {{ item.role === 'user' ? '你' : '助手' }}
                 </div>
-                <div class="dialog-item__text">{{ item.text }}</div>
+                <div class="chat-msg__text">{{ item.text }}</div>
               </div>
-            </div>
-
-            <div class="question-stage">
               <div
-                class="question-title-wrap"
-                :class="{ 'question-title-wrap--thinking': isQuestionBusy }"
+                v-if="requestingQuestion"
+                class="chat-msg chat-msg--assistant chat-msg--streaming"
               >
-                <h1 class="questions-title" :class="questionVisualSizeClass">
-                  <template v-if="requestingQuestion && !hasAnyStreamedQuestion">
-                    <span class="gray">思考…</span><span class="thinking-caret"></span>
-                  </template>
-
-                  <template v-else-if="hasAnyStreamedQuestion">
-                    <span>{{ streamedQuestionStableText }}</span>
-                    <span
-                      v-if="streamedQuestionPendingChar"
-                      class="stream-char"
-                    >{{ streamedQuestionPendingChar }}</span>
-                    <span class="thinking-caret"></span>
-                  </template>
-
-                  <template v-else>
-                    {{ currentMainDisplayText || currentQuestion || '' }}
-                  </template>
-                </h1>
-
-                <p v-if="!loading" class="questions-hint">
-                  {{ questionHintText }}
-                </p>
-              </div>
-
-              <div v-if="loading" class="questions-status">
-                正在请求问题……
-              </div>
-            </div>
-
-            <div class="answer-stage">
-              <div
-                class="question-answer-area"
-                :class="{ 'question-answer-area--thinking': isAnswerDimmed }"
-              >
-                <div
-                  v-if="questionType === 'text'"
-                  class="question-breath-wrap question-input-wrap"
-                >
-                  <textarea
-                    v-model="answerText"
-                    class="question-textarea"
-                    placeholder="在这里慢慢写下你的想法。"
-                    :disabled="isQuestionBusy || !answerRevealReady"
-                  ></textarea>
-                </div>
-
-                <div
-                  v-else-if="questionType === 'single_choice'"
-                  class="question-breath-wrap question-options-wrap"
-                >
-                  <div class="question-options">
-                    <label
-                      v-for="(option, index) in questionOptions"
-                      :key="index"
-                      class="question-option"
-                      :class="{ 'question-option--active': selectedOption === option }"
-                    >
-                      <input
-                        v-model="selectedOption"
-                        type="radio"
-                        name="question-option"
-                        :value="option"
-                        :disabled="isQuestionBusy || !answerRevealReady"
-                      />
-                      <span>{{ option }}</span>
-                    </label>
-                  </div>
+                <div class="chat-msg__role">助手</div>
+                <div class="chat-msg__text">
+                  {{ streamingAssistantText || '思考中…' }}
                 </div>
               </div>
-            </div>
-
-            <div
-              v-if="showStageInsightLink"
-              class="question-side-link-row question-side-link-row--intro"
-            >
-              <button
-                class="question-side-link"
-                type="button"
-                :disabled="isQuestionBusy"
-                @click="openStageDrawer"
-              >
-                <span class="question-side-link__icon" aria-hidden="true">
-                  <svg viewBox="0 0 20 20" fill="none">
-                    <path
-                      d="M4.5 10h11"
-                      stroke="currentColor"
-                      stroke-width="1.4"
-                      stroke-linecap="round"
-                    />
-                    <path
-                      d="M10 4.5l5.5 5.5L10 15.5"
-                      stroke="currentColor"
-                      stroke-width="1.4"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                </span>
-                <span class="question-side-link__text">
-                  {{ stageInsightLinkText }}
-                </span>
-              </button>
             </div>
 
             <div v-if="errorMessage" class="questions-error">
               {{ errorMessage }}
             </div>
 
-            <div
-              class="questions-actions"
-              :class="{ 'questions-actions--thinking': isAnswerDimmed }"
-            >
-              <button
-                class="question-btn question-btn--ghost"
-                type="button"
-                :disabled="isQuestionBusy || !answerRevealReady"
-                @click="goBack"
-              >
-                返回上一页
-              </button>
-
+            <div class="chat-composer">
+              <textarea
+                v-model="answerText"
+                class="chat-composer__input"
+                placeholder="继续说说你的真实感受…"
+                :disabled="isQuestionBusy"
+                @keydown.enter.exact.prevent="goNext"
+              ></textarea>
               <button
                 class="question-btn question-btn--solid"
                 type="button"
-                :disabled="isQuestionBusy || !answerRevealReady"
+                :disabled="isQuestionBusy"
                 @click="goNext"
               >
-                {{ requestingQuestion ? '正在整理…' : '下一步' }}
+                {{ requestingQuestion ? '发送中…' : '发送' }}
               </button>
             </div>
           </section>
@@ -379,6 +273,7 @@ export default {
       askStreamComplete: false,
       streamedQuestionStableText: '',
       streamedQuestionPendingChar: '',
+      streamingAssistantText: '',
       playbackRafId: null,
       playbackLastTs: 0,
       playbackAccumulator: 0,
@@ -497,11 +392,7 @@ export default {
     },
 
     showStageInsightLink() {
-      return (
-        this.answerRevealReady &&
-        !this.isQuestionBusy &&
-        this.hasUnreadStageUpdate
-      )
+      return false
     },
 
     stageInsightLinkText() {
@@ -523,22 +414,6 @@ export default {
         judgements: getLevel(this.normalizedJudgements.length, 2),
         candidates: getLevel(this.normalizedCandidates.length, 2)
       }
-    },
-
-    recentDialogItems() {
-      const list = Array.isArray(this.dialogItems) ? this.dialogItems : []
-      const recent = list.slice(-6)
-      const lastAssistantIndex = (() => {
-        for (let i = recent.length - 1; i >= 0; i -= 1) {
-          if (recent[i]?.role === 'assistant') return i
-        }
-        return -1
-      })()
-
-      return recent.map((item, index) => ({
-        ...item,
-        isFocus: index === lastAssistantIndex
-      }))
     }
   },
 
@@ -710,27 +585,18 @@ export default {
     },
 
     playLocalQuestion(questionText, lengthHint = '') {
-      this.resetAskStreamingState()
-      this.answerRevealReady = false
+      this.currentMainDisplayText = questionText || ''
+      this.currentQuestionLengthHint = lengthHint || this.inferQuestionLengthHint(questionText)
       this.requestingQuestion = false
-      this.playingQuestion = true
-      this.targetQuestionText = questionText || ''
-      this.targetQuestionLengthHint = lengthHint || this.inferQuestionLengthHint(questionText)
-      this.lockedStreamingLengthHint = this.targetQuestionLengthHint || 'medium'
-      this.askStreamComplete = true
-      this.ensurePlaybackRunning()
+      this.playingQuestion = false
+      this.answerRevealReady = true
     },
 
     getCurrentAnswer() {
-      return this.questionType === 'single_choice'
-        ? this.selectedOption
-        : this.answerText.trim()
+      return this.answerText.trim()
     },
 
     validateCurrentAnswer(answer) {
-      if (this.questionType === 'single_choice') {
-        return !!answer
-      }
       return !!String(answer || '').trim()
     },
 
@@ -866,20 +732,13 @@ export default {
       this.appendDialogItem('assistant', finalDisplayText)
 
       this.round += 1
-      this.targetQuestionText = finalDisplayText
-      this.targetQuestionLengthHint =
+      this.currentQuestionLengthHint =
         message?.question_length_hint || this.inferQuestionLengthHint(finalDisplayText)
-
-      if (!this.lockedStreamingLengthHint) {
-        this.lockedStreamingLengthHint = this.targetQuestionLengthHint || 'medium'
-      }
-
-      this.currentQuestionLengthHint = this.lockedStreamingLengthHint
-      this.askStreamComplete = true
-      this.playingQuestion = true
-      this.answerRevealReady = false
+      this.requestingQuestion = false
+      this.playingQuestion = false
+      this.streamingAssistantText = ''
+      this.answerRevealReady = true
       this.handleInsightSignals(data)
-      this.ensurePlaybackRunning()
     },
 
     handleInsightSignals(payload) {
@@ -982,23 +841,16 @@ export default {
       }
 
       if (payload.event === 'message_chunk') {
-        const rawChunk =
-          String(payload?.raw || '') ||
-          String(payload?.content || '') ||
-          String(payload?.delta || '')
+        this.requestingQuestion = true
+        const chunkText = String(
+          payload?.delta ||
+          payload?.content ||
+          payload?.message?.delta ||
+          ''
+        )
 
-        if (rawChunk) {
-          this.rawAskBuffer += rawChunk
-        }
-
-        const partialQuestion =
-          this.extractPartialQuestionText(payload) ||
-          this.extractQuestionFromJsonText(this.rawAskBuffer)
-
-        if (partialQuestion && partialQuestion.length >= this.targetQuestionText.length) {
-          this.targetQuestionText = partialQuestion
-          this.playingQuestion = true
-          this.ensurePlaybackRunning()
+        if (chunkText && !chunkText.trim().startsWith('{')) {
+          this.streamingAssistantText += chunkText
         }
         return
       }
@@ -1089,27 +941,21 @@ export default {
     },
 
     async goNext() {
-      if (this.isQuestionBusy || !this.answerRevealReady) return
+      if (this.isQuestionBusy) return
 
       const currentAnswer = this.getCurrentAnswer()
 
       if (!this.validateCurrentAnswer(currentAnswer)) {
-        this.errorMessage = this.questionType === 'single_choice'
-          ? '请先选择一个选项。'
-          : '请先输入你的回答。'
+        this.errorMessage = '请先输入你的回答。'
         return
       }
 
       this.requestingQuestion = true
       this.playingQuestion = false
-      this.answerRevealReady = false
+      this.answerRevealReady = true
+      this.streamingAssistantText = ''
       this.errorMessage = ''
       this.resetAskStreamingState()
-      this.streamedQuestionStableText = ''
-      this.streamedQuestionPendingChar = ''
-      this.targetQuestionText = ''
-      this.rawAskBuffer = ''
-      this.lockedStreamingLengthHint = 'medium'
 
       this.qaHistory.push({
         round: this.round,
@@ -1751,16 +1597,16 @@ export default {
   gap: 10px;
 }
 
-.dialog-strip {
+.chat-thread {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 180px;
+  gap: 10px;
+  height: 520px;
   overflow: auto;
-  padding: 4px 6px 2px;
+  padding: 8px 6px 10px;
 }
 
-.dialog-item {
+.chat-msg {
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -1771,32 +1617,51 @@ export default {
   background: rgba(255, 255, 255, 0.6);
 }
 
-.dialog-item--assistant {
+.chat-msg--assistant {
   align-self: flex-start;
 }
 
-.dialog-item--user {
+.chat-msg--user {
   align-self: flex-end;
   background: rgba(243, 236, 224, 0.66);
 }
 
-.dialog-item--focus {
-  border-color: rgba(124, 110, 90, 0.4);
-  box-shadow: 0 8px 18px rgba(106, 92, 75, 0.12);
+.chat-msg--streaming {
+  border-style: dashed;
 }
 
-.dialog-item__role {
+.chat-msg__role {
   font-size: 11px;
   line-height: 1.2;
   color: #9a927f;
 }
 
-.dialog-item__text {
+.chat-msg__text {
   font-size: 14px;
   line-height: 1.6;
   color: #3c3932;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.chat-composer {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.chat-composer__input {
+  width: 100%;
+  min-height: 72px;
+  max-height: 160px;
+  resize: vertical;
+  border: 1px solid rgba(176, 164, 145, 0.32);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 15px;
+  line-height: 1.55;
+  background: rgba(255, 255, 255, 0.84);
 }
 
 .question-stage {
