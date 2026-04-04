@@ -28,6 +28,9 @@ self_value_bot.py
 5. 阶段状态由 StageLayer / StageOrchestrator 管理
 """
 
+import random
+import re
+import time
 from typing import Any, Dict, Optional
 
 from .prompt_runner import PromptRunner
@@ -86,6 +89,99 @@ class SelfValueBot:
         stage_state_data = context.get("stage_state")
         return self.stage_orchestrator.restore_stage_state(stage_state_data)
 
+    def _normalize_pending_candidate(self, context: Dict[str, Any]) -> Dict[str, str]:
+        pending = context.get("pending_insight_candidate")
+        if not isinstance(pending, dict):
+            return {}
+
+        candidate_id = str(pending.get("candidate_id") or "").strip()
+        text = str(pending.get("text") or "").strip()
+
+        if not candidate_id or not text:
+            return {}
+        return {
+            "candidate_id": candidate_id,
+            "text": text,
+        }
+
+    def _is_explicit_confirmation(self, answer: str) -> bool:
+        text = str(answer or "").strip()
+        if not text:
+            return False
+
+        normalized = re.sub(r"\s+", "", text.lower())
+        deny_tokens = (
+            "不是", "不对", "不太对", "没说中", "没感觉", "不认同", "不认可", "并不", "但", "不过", "然而"
+        )
+        if any(token in normalized for token in deny_tokens):
+            return False
+
+        confirm_tokens = (
+            "是的", "对的", "对", "没错", "说得对", "你说得准", "很准", "准确", "认同", "认可", "贴近", "就是这个", "确实", "说到点子上"
+        )
+        return any(token in normalized for token in confirm_tokens)
+
+    def _extract_candidate_insight(self, prompt_result: Dict[str, Any]) -> str:
+        for key in ("candidate_insight", "insight"):
+            value = str(prompt_result.get(key) or "").strip()
+            if value:
+                return value
+
+        # 兼容当前 self_value 主链路：多数情况下只有 summary/question，没有显式 candidate_insight。
+        summary_text = str(prompt_result.get("summary") or "").strip()
+        if summary_text:
+            return summary_text
+
+        question_text = str(prompt_result.get("question") or "").strip()
+        if not question_text:
+            return ""
+
+        # 优先提取问句前的判断性短句，避免把整段问题当 insight。
+        parts = re.split(r"[。！？!?]", question_text)
+        for part in parts:
+            candidate = part.strip(" ，,；;：:")
+            if len(candidate) < 8:
+                continue
+            if "?" in candidate or "？" in candidate:
+                continue
+            if "你" not in candidate:
+                continue
+            return candidate
+
+        return ""
+
+    def _build_insight_signal(
+        self,
+        prompt_result: Dict[str, Any],
+        context: Dict[str, Any],
+    ) -> Dict[str, str]:
+        pending = self._normalize_pending_candidate(context)
+        answer = str(context.get("answer") or "")
+
+        if pending and self._is_explicit_confirmation(answer):
+            return {
+                "confirmed_insight": pending["text"],
+                "candidate_insight": "",
+                "candidate_id": "",
+            }
+
+        candidate_text = self._extract_candidate_insight(prompt_result)
+        if not candidate_text:
+            return {
+                "candidate_insight": "",
+                "candidate_id": "",
+                "confirmed_insight": "",
+            }
+
+        candidate_id = str(prompt_result.get("candidate_id") or "").strip()
+        if not candidate_id:
+            candidate_id = f"cand_{int(time.time() * 1000)}_{random.randint(100, 999)}"
+        return {
+            "candidate_insight": candidate_text,
+            "candidate_id": candidate_id,
+            "confirmed_insight": "",
+        }
+
     def self_value_response(self, **kwargs) -> Dict[str, Any]:
         """
         同步调用 self_value 主 prompt，并返回后端组合结果。
@@ -129,8 +225,16 @@ class SelfValueBot:
           "meta": {...}
         }
         """
+        context = self._build_context(kwargs)
         combined_result = self.self_value_response(**kwargs)
-        return self.response_formatter.format_response(combined_result)
+        formatted = self.response_formatter.format_response(combined_result)
+        formatted.update(
+            self._build_insight_signal(
+                prompt_result=combined_result.get("prompt_result") or {},
+                context=context,
+            )
+        )
+        return formatted
 
     def self_value_stream(self, **kwargs):
         """
@@ -176,10 +280,17 @@ class SelfValueBot:
                 )
 
                 formatted_result = self.response_formatter.format_response(combined_result)
+                insight_signal = self._build_insight_signal(
+                    prompt_result=final_prompt_result or {},
+                    context=context,
+                )
 
                 yield {
                     "event": "message_done",
-                    "data": formatted_result.get("message", {})
+                    "data": {
+                        **formatted_result.get("message", {}),
+                        **insight_signal,
+                    }
                 }
 
                 yield {
