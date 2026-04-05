@@ -1470,6 +1470,7 @@ export default {
 <style scoped>
 .questions-page {
   position: relative;
+  height: 100dvh;
   min-height: 100vh;
   overflow: hidden;
   background:
@@ -1514,10 +1515,11 @@ export default {
 }
 
 .questions-shell {
+  box-sizing: border-box;
   position: relative;
   z-index: 2;
-  height: 100dvh;
-  min-height: 100vh;
+  height: 100%;
+  min-height: 0;
   display: flex;
   align-items: stretch;
   justify-content: center;
@@ -1590,6 +1592,8 @@ export default {
   width: 100%;
   max-width: 760px;
   height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .questions-main {
@@ -1690,7 +1694,7 @@ export default {
   width: 100%;
   min-height: 72px;
   max-height: 160px;
-  resize: vertical;
+  resize: none;
   border: 1px solid rgba(176, 164, 145, 0.32);
   border-radius: 14px;
   padding: 12px 14px;
@@ -2482,8 +2486,8 @@ export default {
 
 @media (max-width: 768px) {
   .questions-shell {
-    height: 100dvh;
-    min-height: 100vh;
+    height: 100%;
+    min-height: 0;
     padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px));
   }
 
