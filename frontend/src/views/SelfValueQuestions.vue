@@ -1705,11 +1705,14 @@ export default {
   flex: 0 0 auto;
   gap: 10px;
   align-items: center;
-  padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid rgba(178, 166, 147, 0.2);
+  padding: 10px 0 calc(18px + env(safe-area-inset-bottom, 0px));
   background: transparent;
   border-radius: 14px;
   z-index: 2;
+}
+
+.chat-composer .question-btn--solid {
+  box-shadow: none;
 }
 
 .chat-composer__input {
@@ -2548,7 +2551,7 @@ export default {
   .chat-composer {
     grid-template-columns: 1fr;
     gap: 8px;
-    padding: 8px 0 calc(10px + env(safe-area-inset-bottom, 0px));
+    padding: 8px 0 calc(16px + env(safe-area-inset-bottom, 0px));
   }
 
   .chat-composer .question-btn {
