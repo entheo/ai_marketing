@@ -14,7 +14,12 @@
         <div class="questions-container">
           <section class="questions-main">
             <div class="chat-body">
-              <div ref="chatThread" class="chat-thread">
+              <div
+                ref="chatThread"
+                class="chat-thread"
+                :class="{ 'chat-thread--scrolling': isThreadScrolling }"
+                @scroll.passive="handleThreadScroll"
+              >
                 <div
                   v-for="item in dialogItems"
                   :key="item.id"
@@ -307,7 +312,9 @@ export default {
       lastStageDigest: '',
       hasShownAnyStagePrompt: false,
       stageInlineFlash: false,
-      stageInlineFlashTimer: null
+      stageInlineFlashTimer: null,
+      isThreadScrolling: false,
+      threadScrollHideTimer: null
     }
   },
 
@@ -445,6 +452,17 @@ export default {
         if (!el) return
         el.scrollTop = el.scrollHeight
       })
+    },
+
+    handleThreadScroll() {
+      this.isThreadScrolling = true
+      if (this.threadScrollHideTimer) {
+        clearTimeout(this.threadScrollHideTimer)
+      }
+      this.threadScrollHideTimer = setTimeout(() => {
+        this.isThreadScrolling = false
+        this.threadScrollHideTimer = null
+      }, 560)
     },
 
     triggerStageInlineFlash() {
@@ -1445,6 +1463,10 @@ export default {
       clearTimeout(this.stageInlineFlashTimer)
       this.stageInlineFlashTimer = null
     }
+    if (this.threadScrollHideTimer) {
+      clearTimeout(this.threadScrollHideTimer)
+      this.threadScrollHideTimer = null
+    }
     window.removeEventListener('resize', this.updateViewportMode)
   },
 
@@ -1626,7 +1648,7 @@ export default {
   scroll-padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: rgba(130, 124, 113, 0.32) transparent;
+  scrollbar-color: transparent transparent;
 }
 
 .chat-msg {
@@ -1704,7 +1726,7 @@ export default {
 }
 
 .chat-thread::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 .chat-thread::-webkit-scrollbar-track {
@@ -1712,8 +1734,22 @@ export default {
 }
 
 .chat-thread::-webkit-scrollbar-thumb {
-  background: rgba(132, 124, 110, 0.28);
+  background: transparent;
   border-radius: 999px;
+  transition: background-color 0.18s ease;
+}
+
+.chat-thread:hover {
+  scrollbar-color: rgba(132, 124, 110, 0.2) transparent;
+}
+
+.chat-thread:hover::-webkit-scrollbar-thumb,
+.chat-thread--scrolling::-webkit-scrollbar-thumb {
+  background: rgba(132, 124, 110, 0.2);
+}
+
+.chat-thread--scrolling {
+  scrollbar-color: rgba(132, 124, 110, 0.2) transparent;
 }
 
 .question-stage {
