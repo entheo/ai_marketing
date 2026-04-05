@@ -1603,6 +1603,7 @@ export default {
 .chat-body {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
 }
@@ -1610,8 +1611,9 @@ export default {
 .chat-thread {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   gap: 10px;
-  height: 100%;
+  min-height: 0;
   overflow: auto;
   padding: 8px 8px calc(26px + env(safe-area-inset-bottom, 0px));
   scroll-padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
@@ -1634,7 +1636,7 @@ export default {
 
 .chat-msg--user {
   align-self: flex-end;
-  width: min(100%, clamp(260px, 58vw, 620px));
+  max-width: 100%;
 }
 
 .chat-msg--streaming {
@@ -1657,8 +1659,9 @@ export default {
 }
 
 .chat-msg--user .chat-msg__text {
-  width: 100%;
-  max-width: 100%;
+  display: inline-block;
+  width: fit-content;
+  max-width: min(100%, clamp(300px, 58vw, 620px));
   padding: 9px 12px;
   border-radius: 12px;
   border: 1px solid rgba(176, 164, 145, 0.32);
@@ -2488,7 +2491,11 @@ export default {
   }
 
   .chat-msg--user {
-    width: min(100%, clamp(220px, 84vw, 520px));
+    max-width: 100%;
+  }
+
+  .chat-msg--user .chat-msg__text {
+    max-width: min(100%, 84vw);
   }
 
   .chat-composer {
