@@ -1704,10 +1704,10 @@ export default {
   grid-template-columns: 1fr auto;
   flex: 0 0 auto;
   gap: 10px;
-  align-items: end;
+  align-items: center;
   padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid rgba(178, 166, 147, 0.2);
-  background: rgba(246, 240, 232, 0.94);
+  background: transparent;
   border-radius: 14px;
   z-index: 2;
 }
