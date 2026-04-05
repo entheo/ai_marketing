@@ -1520,7 +1520,7 @@ export default {
   display: flex;
   align-items: stretch;
   justify-content: center;
-  padding: 18px 20px 14px;
+  padding: 18px 20px calc(16px + env(safe-area-inset-bottom, 0px));
 }
 
 .questions-layout {
@@ -1597,10 +1597,12 @@ export default {
   grid-template-rows: minmax(0, 1fr) auto;
   height: 100%;
   min-height: 0;
-  gap: 10px;
+  gap: 12px;
 }
 
 .chat-body {
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   overflow: hidden;
 }
@@ -1611,7 +1613,9 @@ export default {
   gap: 10px;
   height: 100%;
   overflow: auto;
-  padding: 8px 6px 16px;
+  padding: 8px 8px calc(26px + env(safe-area-inset-bottom, 0px));
+  scroll-padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+  overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: rgba(130, 124, 113, 0.32) transparent;
 }
@@ -1630,6 +1634,7 @@ export default {
 
 .chat-msg--user {
   align-self: flex-end;
+  width: min(100%, clamp(260px, 58vw, 620px));
 }
 
 .chat-msg--streaming {
@@ -1652,7 +1657,8 @@ export default {
 }
 
 .chat-msg--user .chat-msg__text {
-  max-width: min(78%, 620px);
+  width: 100%;
+  max-width: 100%;
   padding: 9px 12px;
   border-radius: 12px;
   border: 1px solid rgba(176, 164, 145, 0.32);
@@ -1660,15 +1666,14 @@ export default {
 }
 
 .chat-composer {
-  position: sticky;
-  bottom: 0;
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 10px;
   align-items: end;
-  padding: 8px 0 6px;
+  padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid rgba(178, 166, 147, 0.2);
   background: rgba(246, 240, 232, 0.94);
+  border-radius: 14px;
   z-index: 2;
 }
 
@@ -2469,12 +2474,31 @@ export default {
 @media (max-width: 768px) {
   .questions-shell {
     height: 100vh;
-    padding: 12px 12px 10px;
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px));
   }
 
   .questions-main {
     height: 100%;
+    gap: 10px;
+  }
+
+  .chat-thread {
+    padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+    scroll-padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .chat-msg--user {
+    width: min(100%, clamp(220px, 84vw, 520px));
+  }
+
+  .chat-composer {
+    grid-template-columns: 1fr;
     gap: 8px;
+    padding: 8px 0 calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .chat-composer .question-btn {
+    width: 100%;
   }
 
   .question-stage,
