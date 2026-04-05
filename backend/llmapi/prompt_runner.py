@@ -111,6 +111,49 @@ class PromptRunner:
         if len(text) > 4000:
             text = text[:4000].rstrip("，。、；：,.;: ")
 
+        inferred = self._infer_raw_status_from_text(text)
+        if inferred == "final_report":
+            return {
+                "status": "final_report",
+                "question_type": "",
+                "question": "",
+                "options": [],
+                "summary": text[:260],
+                "report": text,
+                "next_action": "",
+                "question_length_hint": "",
+                "should_end": True,
+                "can_summarize": False,
+            }
+
+        if inferred == "action_plan":
+            return {
+                "status": "action_plan",
+                "question_type": "",
+                "question": "",
+                "options": [],
+                "summary": text[:220],
+                "report": text,
+                "next_action": text[:180],
+                "question_length_hint": "",
+                "should_end": False,
+                "can_summarize": False,
+            }
+
+        if inferred == "stage_summary":
+            return {
+                "status": "stage_summary",
+                "question_type": "",
+                "question": "",
+                "options": [],
+                "summary": text,
+                "report": "",
+                "next_action": "",
+                "question_length_hint": "",
+                "should_end": False,
+                "can_summarize": False,
+            }
+
         return {
             "status": "ask",
             "question_type": "text",
@@ -123,6 +166,56 @@ class PromptRunner:
             "should_end": False,
             "can_summarize": self._safe_round(context) >= self.min_summary_round,
         }
+
+    def _infer_raw_status_from_text(self, text: str) -> str:
+        value = str(text or "").strip()
+        if not value:
+            return "ask"
+
+        lowered = value.lower()
+        q_count = value.count("？") + value.count("?")
+
+        final_markers = (
+            "最终建议",
+            "阶段结论",
+            "可以先收束",
+            "我们先收束",
+            "可以结束这一阶段",
+            "final report",
+        )
+        if any(marker in value for marker in final_markers):
+            return "final_report"
+
+        action_markers = (
+            "下一步",
+            "行动建议",
+            "你可以先",
+            "今天就做",
+            "本周先做",
+            "action plan",
+        )
+        if any(marker in value for marker in action_markers) and q_count == 0:
+            return "action_plan"
+
+        summary_markers = (
+            "阶段总结",
+            "小结一下",
+            "总结一下",
+            "目前看",
+            "你现在的优势",
+            "核心线索",
+            "stage summary",
+        )
+        if any(marker in value for marker in summary_markers) and q_count == 0:
+            return "stage_summary"
+
+        # 无问号 + 多段内容，优先判为阶段总结而不是继续追问
+        long_form_separators = value.count("\n") + value.count("。") + value.count("- ")
+        if q_count == 0 and (len(value) >= 140 or long_form_separators >= 4):
+            return "stage_summary"
+
+        # 有问号默认继续 ask
+        return "ask"
 
     def _extract_json_text(self, raw_text: str) -> str:
         """
