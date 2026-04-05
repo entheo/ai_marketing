@@ -1516,7 +1516,8 @@ export default {
 .questions-shell {
   position: relative;
   z-index: 2;
-  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
   display: flex;
   align-items: stretch;
   justify-content: center;
@@ -1593,8 +1594,8 @@ export default {
 
 .questions-main {
   position: relative;
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   height: 100%;
   min-height: 0;
   overflow: hidden;
@@ -1615,7 +1616,8 @@ export default {
   flex: 1 1 auto;
   gap: 10px;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 8px 8px calc(26px + env(safe-area-inset-bottom, 0px));
   scroll-padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
   overscroll-behavior: contain;
@@ -1674,6 +1676,7 @@ export default {
 .chat-composer {
   display: grid;
   grid-template-columns: 1fr auto;
+  flex: 0 0 auto;
   gap: 10px;
   align-items: end;
   padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px));
@@ -2479,7 +2482,8 @@ export default {
 
 @media (max-width: 768px) {
   .questions-shell {
-    height: 100vh;
+    height: 100dvh;
+    min-height: 100vh;
     padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px));
   }
 
