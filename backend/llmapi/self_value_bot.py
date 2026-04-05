@@ -72,6 +72,7 @@ class SelfValueBot:
         """
         context = {
             "mode": "self_value",
+            "dialog_mode": "raw_coach_extreme",
             "round": 1,
             "answer": "",
             "qa_history": [],

@@ -68,6 +68,62 @@ class PromptRunner:
         except (TypeError, ValueError):
             return 1
 
+    def _is_raw_dialog_mode(self, context: Dict[str, Any]) -> bool:
+        mode = str(context.get("dialog_mode", "") or "").strip().lower()
+        return mode in ("raw_coach", "raw_coach_extreme", "raw", "free_chat")
+
+    def _build_prompt_for_mode(
+        self,
+        adapter: PromptAdapter,
+        raw_prompt: str,
+        context: Dict[str, Any],
+    ) -> str:
+        if not self._is_raw_dialog_mode(context):
+            return adapter.compile(raw_prompt=raw_prompt, context=context)
+
+        input_block = adapter._build_input_block(context)  # noqa: SLF001
+        return f"""
+{raw_prompt}
+
+{input_block}
+
+【raw_coach_extreme 模式】
+你现在处于高自由对话模式：
+1. 不需要输出 JSON
+2. 用自然中文直接对话
+3. 先回应用户刚才最关键的一点，再给出你的判断，然后自然推进下一个问题
+4. 避免模板化追问，避免空话
+5. 不要出现“承接/点亮/推进”这类过程标签词
+""".strip()
+
+    def _coerce_raw_text_result(self, raw_content: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        parsed = self._parse_json(raw_content)
+        if isinstance(parsed, dict) and parsed.get("status") != "error":
+            parsed = self._normalize_result(parsed)
+            parsed = self._repair_shape(parsed)
+            return parsed
+
+        text = str(raw_content or "").strip()
+        if not text:
+            text = "我先接住你刚才的表达。你愿意说说最近一次最有感觉的具体场景吗？"
+
+        text = text.replace("\r", "").strip()
+        if len(text) > 4000:
+            text = text[:4000].rstrip("，。、；：,.;: ")
+
+        return {
+            "status": "ask",
+            "question_type": "text",
+            "question": text,
+            "options": [],
+            "summary": "",
+            "report": "",
+            "next_action": "",
+            "question_length_hint": self._calc_question_length_hint(text),
+            "should_end": False,
+            "can_summarize": self._safe_round(context) >= self.min_summary_round,
+        }
+
     def _extract_json_text(self, raw_text: str) -> str:
         """
         尝试从模型返回中提取 JSON 字符串。
@@ -657,11 +713,14 @@ class PromptRunner:
         raw_prompt = config["raw_prompt"]
         scene = config.get("scene", "universal")
         temperature = config.get("temperature", 1.2)
+        if self._is_raw_dialog_mode(kwargs):
+            temperature = min(1.5, max(temperature, 1.35))
 
         adapter = PromptAdapter(scene=scene)
-        rendered_prompt = adapter.compile(
+        rendered_prompt = self._build_prompt_for_mode(
+            adapter=adapter,
             raw_prompt=raw_prompt,
-            context=kwargs
+            context=kwargs,
         )
 
         messages = self.get_messages(rendered_prompt)
@@ -673,6 +732,9 @@ class PromptRunner:
         )
 
         raw_content = response.choices[0].message.content
+        if self._is_raw_dialog_mode(kwargs):
+            return self._coerce_raw_text_result(raw_content=raw_content, context=kwargs)
+
         result = self._parse_json(raw_content)
         result = self._finalize_result(result=result, context=kwargs, adapter=adapter)
         return result
@@ -697,11 +759,14 @@ class PromptRunner:
         raw_prompt = config["raw_prompt"]
         scene = config.get("scene", "universal")
         temperature = config.get("temperature", 1.2)
+        if self._is_raw_dialog_mode(kwargs):
+            temperature = min(1.5, max(temperature, 1.35))
 
         adapter = PromptAdapter(scene=scene)
-        rendered_prompt = adapter.compile(
+        rendered_prompt = self._build_prompt_for_mode(
+            adapter=adapter,
             raw_prompt=raw_prompt,
-            context=kwargs
+            context=kwargs,
         )
 
         messages = self.get_messages(rendered_prompt)
@@ -728,8 +793,11 @@ class PromptRunner:
                     "content": delta
                 }
 
-        result = self._parse_json(buffer)
-        result = self._finalize_result(result=result, context=kwargs, adapter=adapter)
+        if self._is_raw_dialog_mode(kwargs):
+            result = self._coerce_raw_text_result(raw_content=buffer, context=kwargs)
+        else:
+            result = self._parse_json(buffer)
+            result = self._finalize_result(result=result, context=kwargs, adapter=adapter)
 
         yield {
             "event": "done",

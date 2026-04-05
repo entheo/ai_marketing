@@ -13,6 +13,15 @@
       <div class="questions-layout">
         <div class="questions-container">
           <section class="questions-main">
+            <div class="chat-stage-bar">
+              <div class="chat-stage-bar__stage">
+                {{ stageProgressText }}
+              </div>
+              <div class="chat-stage-bar__hint">
+                {{ stageTimelineHint }}
+              </div>
+            </div>
+
             <div class="chat-body">
               <div
                 ref="chatThread"
@@ -28,15 +37,16 @@
                     item.role === 'user' ? 'chat-msg--user' : 'chat-msg--assistant'
                   ]"
                 >
-                  <div class="chat-msg__text">{{ item.text }}</div>
+                  <div
+                    class="chat-msg__text"
+                    v-html="renderChatMarkdown(item.text)"
+                  ></div>
                 </div>
                 <div
                   v-if="requestingQuestion"
                   class="chat-msg chat-msg--assistant chat-msg--streaming"
                 >
-                  <div class="chat-msg__text">
-                    思考中…
-                  </div>
+                  <div class="chat-msg__text" v-html="renderChatMarkdown('思考中…')"></div>
                 </div>
               </div>
 
@@ -419,6 +429,23 @@ export default {
         judgements: getLevel(this.normalizedJudgements.length, 2),
         candidates: getLevel(this.normalizedCandidates.length, 2)
       }
+    },
+
+    stageProgressText() {
+      const stageName = String(this.stageView?.stage_name || '').trim()
+      if (stageName) return `当前阶段：${stageName}`
+      if (this.stageMeta?.current_stage_id) {
+        return `当前阶段：${this.stageMeta.current_stage_id}`
+      }
+      return '当前阶段：探索中'
+    },
+
+    stageTimelineHint() {
+      if (this.stageMeta?.can_transition) return '当前信息已较完整，可准备收束'
+      if (this.round <= 2) return '你正在探索早期，预计还需 6~8 轮'
+      if (this.round <= 5) return '你正在形成关键线索，预计还需 4~6 轮'
+      if (this.round <= 8) return '你正在接近阶段收束，预计还需 2~4 轮'
+      return '你已进入深挖后期，可根据收获决定是否收束'
     }
   },
 
@@ -463,6 +490,61 @@ export default {
         this.isThreadScrolling = false
         this.threadScrollHideTimer = null
       }, 560)
+    },
+
+    renderChatMarkdown(text) {
+      const raw = String(text || '')
+      const escaped = raw
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+
+      const withInline = value =>
+        value.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+
+      const lines = escaped.split('\n')
+      const chunks = []
+      let listBuffer = []
+      let listType = ''
+
+      const flushList = () => {
+        if (!listBuffer.length) return
+        const tag = listType === 'ol' ? 'ol' : 'ul'
+        chunks.push(`<${tag}>${listBuffer.join('')}</${tag}>`)
+        listBuffer = []
+        listType = ''
+      }
+
+      lines.forEach(line => {
+        const ordered = line.match(/^\s*\d+\.\s+(.+)$/)
+        const unordered = line.match(/^\s*-\s+(.+)$/)
+
+        if (ordered) {
+          if (listType && listType !== 'ol') flushList()
+          listType = 'ol'
+          listBuffer.push(`<li>${withInline(ordered[1])}</li>`)
+          return
+        }
+
+        if (unordered) {
+          if (listType && listType !== 'ul') flushList()
+          listType = 'ul'
+          listBuffer.push(`<li>${withInline(unordered[1])}</li>`)
+          return
+        }
+
+        flushList()
+        if (!line.trim()) {
+          chunks.push('<br />')
+          return
+        }
+        chunks.push(`<p>${withInline(line)}</p>`)
+      })
+
+      flushList()
+      return chunks.join('')
     },
 
     triggerStageInlineFlash() {
@@ -1628,6 +1710,26 @@ export default {
   gap: 12px;
 }
 
+.chat-stage-bar {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 2px 0;
+}
+
+.chat-stage-bar__stage {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #5f5a52;
+}
+
+.chat-stage-bar__hint {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #8e8579;
+}
+
 .chat-body {
   display: flex;
   flex-direction: column;
@@ -1682,6 +1784,24 @@ export default {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.chat-msg__text :deep(p) {
+  margin: 0 0 8px;
+}
+
+.chat-msg__text :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.chat-msg__text :deep(ul),
+.chat-msg__text :deep(ol) {
+  margin: 0;
+  padding-left: 1.25em;
+}
+
+.chat-msg__text :deep(li) {
+  margin: 0 0 4px;
 }
 
 .chat-msg--assistant .chat-msg__text {
