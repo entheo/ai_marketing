@@ -1530,7 +1530,7 @@ export default {
   display: grid;
   grid-template-columns: minmax(0, 760px);
   justify-content: center;
-  align-items: start;
+  align-items: stretch;
   gap: 22px;
   transition: grid-template-columns 0.28s ease;
 }
@@ -1597,6 +1597,7 @@ export default {
   grid-template-rows: minmax(0, 1fr) auto;
   height: 100%;
   min-height: 0;
+  overflow: hidden;
   gap: 12px;
 }
 
@@ -1632,10 +1633,12 @@ export default {
 
 .chat-msg--assistant {
   align-self: flex-start;
+  align-items: flex-start;
 }
 
 .chat-msg--user {
   align-self: flex-end;
+  align-items: flex-end;
   max-width: 100%;
 }
 
