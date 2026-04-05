@@ -50,9 +50,9 @@ class PromptAdapter:
     }
 
     QUESTION_LENGTH_RULE = {
-        "ideal_min": 18,
-        "ideal_max": 38,
-        "hard_max": 50,
+        "ideal_min": 28,
+        "ideal_max": 88,
+        "hard_max": 140,
     }
 
     # 统一的上下文说明协议
@@ -212,7 +212,7 @@ class PromptAdapter:
 【提问长度与展示约束】
 如果当前输出的是 ask 或 clarify，问题必须满足以下要求：
 1. 每次只问一个问题，不得复合提问
-2. 问题必须为单句
+2. 问题可为 1~2 句，但只能围绕一个问题焦点
 3. 不得换行
 4. 中文问题优先控制在 {QUESTION_LENGTH_RULE["ideal_min"]} 到 {QUESTION_LENGTH_RULE["ideal_max"]} 个字之间
 5. 极限不得超过 {QUESTION_LENGTH_RULE["hard_max"]} 个字
@@ -223,7 +223,9 @@ class PromptAdapter:
    - 你是否同时
    - 会不会也
 7. 问题必须自然、口语化、易回答，不要像分析报告标题
-8. 单选题题干要更短、更直接，优先短于开放题
+8. 在不跑题的前提下，优先采用“简短共情镜像 + 一个具体问题”的问法，
+   让用户感到被理解而不是被审问
+9. 单选题题干要更短、更直接，优先短于开放题
 
 【报告类内容展示约束】
 如果当前输出的是 stage_summary / final_report / action_plan：
@@ -261,9 +263,9 @@ class PromptAdapter:
 3. 不要输出 null，尽量输出空字符串或空数组
 4. 任何情况下都只能输出合法 JSON
 5. question_length_hint 规则如下：
-   - 0~20 字：short
-   - 21~30 字：medium
-   - 31~{QUESTION_LENGTH_RULE["hard_max"]} 字：long
+   - 0~28 字：short
+   - 29~70 字：medium
+   - 71~{QUESTION_LENGTH_RULE["hard_max"]} 字：long
    - 非提问状态时填空字符串
 6. can_summarize 规则如下：
    - ask / clarify 状态时可为 true 或 false
@@ -274,14 +276,14 @@ class PromptAdapter:
 必须优先遵守本输出协议。
 尤其是：
 - 一次只问一个问题
-- 问题必须短、单句、可展示
+- 问题必须自然、聚焦、可展示
 - summarize 阶段绝不能继续提问
 - 报告类内容只能使用轻量 markdown
 - 不要为了“完整”而牺牲前端稳定展示
 
 【最终原则】
-你的输出首先要便于前端稳定展示，其次才是文风完整。
-宁可更短、更准，也不要更长、更像“大模型”。
+你的输出首先要便于前端稳定展示，其次要保证对话有温度、有启发。
+宁可更自然、更有信息密度，也不要机械地过短。
 """.strip()
 
     def __init__(self, scene: str = "universal"):
@@ -361,9 +363,9 @@ class PromptAdapter:
         length = len((question or "").strip())
         if length == 0:
             return ""
-        if length <= 20:
+        if length <= 28:
             return "short"
-        if length <= 30:
+        if length <= 70:
             return "medium"
         return "long"
 
