@@ -13,33 +13,31 @@
       <div class="questions-layout">
         <div class="questions-container">
           <section class="questions-main">
-            <div ref="chatThread" class="chat-thread">
-              <div
-                v-for="item in dialogItems"
-                :key="item.id"
-                class="chat-msg"
-                :class="[
-                  item.role === 'user' ? 'chat-msg--user' : 'chat-msg--assistant'
-                ]"
-              >
-                <div class="chat-msg__role">
-                  {{ item.role === 'user' ? '你' : '助手' }}
+            <div class="chat-body">
+              <div ref="chatThread" class="chat-thread">
+                <div
+                  v-for="item in dialogItems"
+                  :key="item.id"
+                  class="chat-msg"
+                  :class="[
+                    item.role === 'user' ? 'chat-msg--user' : 'chat-msg--assistant'
+                  ]"
+                >
+                  <div class="chat-msg__text">{{ item.text }}</div>
                 </div>
-                <div class="chat-msg__text">{{ item.text }}</div>
-              </div>
-              <div
-                v-if="requestingQuestion"
-                class="chat-msg chat-msg--assistant chat-msg--streaming"
-              >
-                <div class="chat-msg__role">助手</div>
-                <div class="chat-msg__text">
-                  思考中…
+                <div
+                  v-if="requestingQuestion"
+                  class="chat-msg chat-msg--assistant chat-msg--streaming"
+                >
+                  <div class="chat-msg__text">
+                    思考中…
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div v-if="errorMessage" class="questions-error">
-              {{ errorMessage }}
+              <div v-if="errorMessage" class="questions-error">
+                {{ errorMessage }}
+              </div>
             </div>
 
             <div class="chat-composer">
@@ -1595,21 +1593,25 @@ export default {
 
 .questions-main {
   position: relative;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
   height: 100%;
   min-height: 0;
   gap: 10px;
+}
+
+.chat-body {
+  min-height: 0;
+  overflow: hidden;
 }
 
 .chat-thread {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  flex: 1;
-  min-height: 0;
+  height: 100%;
   overflow: auto;
-  padding: 8px 6px 120px;
+  padding: 8px 6px 16px;
   scrollbar-width: thin;
   scrollbar-color: rgba(130, 124, 113, 0.32) transparent;
 }
@@ -1634,25 +1636,11 @@ export default {
   opacity: 0.8;
 }
 
-.chat-msg__role {
-  font-size: 11px;
-  line-height: 1.2;
-  color: #9b9488;
-  margin: 0 2px;
-}
-
-.chat-msg--user .chat-msg__role {
-  align-self: flex-end;
-}
-
-.chat-msg--assistant .chat-msg__role {
-  align-self: flex-start;
-}
-
 .chat-msg__text {
   font-size: 15px;
   line-height: 1.72;
   color: #37342e;
+  text-align: left;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -1672,7 +1660,8 @@ export default {
 }
 
 .chat-composer {
-  position: relative;
+  position: sticky;
+  bottom: 0;
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 10px;
@@ -1680,6 +1669,7 @@ export default {
   padding: 8px 0 6px;
   border-top: 1px solid rgba(178, 166, 147, 0.2);
   background: rgba(246, 240, 232, 0.94);
+  z-index: 2;
 }
 
 .chat-composer__input {
