@@ -1900,7 +1900,7 @@ export default {
   background: #fff;
   border: 1px solid rgba(31, 32, 35, 0.1);
   box-shadow: 0 18px 50px rgba(22, 22, 26, 0.18);
-  padding: 18px 18px 16px;
+  padding: 24px 24px 20px;
 }
 
 .restart-modal__title {
@@ -1910,17 +1910,17 @@ export default {
 }
 
 .restart-modal__desc {
-  margin: 10px 0 0;
+  margin: 12px 0 0;
   color: #646a78;
   font-size: 14px;
   line-height: 1.6;
 }
 
 .restart-modal__actions {
-  margin-top: 16px;
+  margin-top: 22px;
   display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+  justify-content: center;
+  gap: 14px;
 }
 
 .questions-container {
