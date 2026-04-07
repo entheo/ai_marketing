@@ -20,6 +20,10 @@
               <div class="chat-stage-bar__hint">
                 {{ stageTimelineHint }}
               </div>
+              <div class="chat-stage-bar__meta">
+                <span>累计轮次：{{ round }}</span>
+                <span>累计时长：{{ cumulativeDurationText }}</span>
+              </div>
             </div>
 
             <div class="chat-body">
@@ -226,21 +230,6 @@
           </div>
         </aside>
 
-        <aside class="insight-panel">
-          <h3 class="insight-panel__title">已留下来的</h3>
-          <div v-if="insightCards.length" class="insight-panel__list">
-            <div
-              v-for="item in insightCards"
-              :key="item.id"
-              class="insight-panel__item"
-            >
-              {{ item.text }}
-            </div>
-          </div>
-          <div v-else class="insight-panel__empty">
-            暂时还没有确认留下的内容
-          </div>
-        </aside>
       </div>
     </div>
 
@@ -324,7 +313,11 @@ export default {
       stageInlineFlash: false,
       stageInlineFlashTimer: null,
       isThreadScrolling: false,
-      threadScrollHideTimer: null
+      threadScrollHideTimer: null,
+      sessionClockTimer: null,
+      sessionStartedAt: Date.now(),
+      elapsedBeforeSessionMs: 0,
+      clockNowMs: Date.now()
     }
   },
 
@@ -446,10 +439,91 @@ export default {
       if (this.round <= 5) return '你正在形成关键线索，预计还需 4~6 轮'
       if (this.round <= 8) return '你正在接近阶段收束，预计还需 2~4 轮'
       return '你已进入深挖后期，可根据收获决定是否收束'
+    },
+
+    cumulativeElapsedMs() {
+      const currentSession = Math.max(0, this.clockNowMs - this.sessionStartedAt)
+      return this.elapsedBeforeSessionMs + currentSession
+    },
+
+    cumulativeDurationText() {
+      const totalMinutes = Math.floor(this.cumulativeElapsedMs / 60000)
+      if (totalMinutes < 1) return '<1 分钟'
+      const hours = Math.floor(totalMinutes / 60)
+      const minutes = totalMinutes % 60
+      if (hours <= 0) return `${minutes} 分钟`
+      return `${hours} 小时 ${minutes} 分钟`
     }
   },
 
   methods: {
+    getSessionStorageKey() {
+      return 'self_value_questions_session_v1'
+    },
+
+    loadLocalSessionState() {
+      try {
+        const raw = window.localStorage.getItem(this.getSessionStorageKey())
+        if (!raw) return false
+        const parsed = JSON.parse(raw)
+        if (!parsed || typeof parsed !== 'object') return false
+        if (!parsed.conversationId) return false
+
+        this.conversationId = parsed.conversationId
+        this.round = Number(parsed.round) > 0 ? Number(parsed.round) : 1
+        this.dialogItems = Array.isArray(parsed.dialogItems) ? parsed.dialogItems : []
+        this.qaHistory = Array.isArray(parsed.qaHistory) ? parsed.qaHistory : []
+        this.currentQuestion = String(parsed.currentQuestion || '')
+        this.currentMainDisplayText = String(parsed.currentMainDisplayText || '')
+        this.currentQuestionLengthHint = String(parsed.currentQuestionLengthHint || 'medium')
+        this.questionType = this.normalizeQuestionType(parsed.questionType || 'text')
+        this.questionOptions = Array.isArray(parsed.questionOptions) ? parsed.questionOptions : []
+        this.stageView = parsed.stageView || this.stageView
+        this.stageMeta = parsed.stageMeta || this.stageMeta
+        this.stageState = parsed.stageState || null
+        this.lastStageDigest = String(parsed.lastStageDigest || '')
+        this.insightCards = Array.isArray(parsed.insightCards) ? parsed.insightCards : []
+        this.pendingInsightCandidate = parsed.pendingInsightCandidate || null
+        this.elapsedBeforeSessionMs = Math.max(0, Number(parsed.elapsedMs || 0))
+        this.sessionStartedAt = Date.now()
+
+        return this.dialogItems.length > 0 || !!this.currentQuestion
+      } catch (error) {
+        return false
+      }
+    },
+
+    persistLocalSessionState() {
+      if (!this.conversationId) return
+      const payload = {
+        conversationId: this.conversationId,
+        round: this.round,
+        dialogItems: this.dialogItems,
+        qaHistory: this.qaHistory,
+        currentQuestion: this.currentQuestion,
+        currentMainDisplayText: this.currentMainDisplayText,
+        currentQuestionLengthHint: this.currentQuestionLengthHint,
+        questionType: this.questionType,
+        questionOptions: this.questionOptions,
+        stageView: this.stageView,
+        stageMeta: this.stageMeta,
+        stageState: this.stageState,
+        lastStageDigest: this.lastStageDigest,
+        insightCards: this.insightCards,
+        pendingInsightCandidate: this.pendingInsightCandidate,
+        elapsedMs: this.cumulativeElapsedMs
+      }
+      try {
+        window.localStorage.setItem(this.getSessionStorageKey(), JSON.stringify(payload))
+      } catch (error) {
+        // ignore storage write errors
+      }
+    },
+
+    tickSessionClock() {
+      this.clockNowMs = Date.now()
+    },
+
     appendDialogItem(role, text) {
       const normalizedRole = role === 'user' ? 'user' : 'assistant'
       const normalizedText = String(text || '').trim()
@@ -471,6 +545,7 @@ export default {
       }
 
       this.scrollChatToBottom()
+      this.persistLocalSessionState()
     },
 
     scrollChatToBottom() {
@@ -678,6 +753,7 @@ export default {
       this.bindMainDisplayTextFromMessage(message, firstDisplayText)
       this.appendDialogItem('assistant', firstDisplayText)
       this.handleInsightSignals(data)
+      this.persistLocalSessionState()
 
       if (stage) {
         this.receiveStagePayload(stage, meta || {}, stageState, {
@@ -847,6 +923,7 @@ export default {
       this.streamingAssistantText = ''
       this.answerRevealReady = true
       this.handleInsightSignals(data)
+      this.persistLocalSessionState()
     },
 
     handleInsightSignals(payload) {
@@ -872,6 +949,7 @@ export default {
           text: candidateInsight
         }
       }
+      this.persistLocalSessionState()
     },
 
     extractQuestionFromJsonText(raw) {
@@ -1064,6 +1142,7 @@ export default {
         answer: currentAnswer
       })
       this.appendDialogItem('user', currentAnswer)
+      this.persistLocalSessionState()
 
       try {
         const response = await fetch('http://127.0.0.1:8002/api/advice/stream/', {
@@ -1360,6 +1439,7 @@ export default {
       }
       this.stageState = stageState || this.stageState
       this.lastStageDigest = this.buildStageDigest(stageView, meta)
+      this.persistLocalSessionState()
     },
 
     receiveStagePayload(stage, meta = {}, stageState = null, options = {}) {
@@ -1394,6 +1474,7 @@ export default {
         this.pendingStageMeta = null
         this.pendingStageState = null
         this.triggerStageInlineFlash()
+        this.persistLocalSessionState()
         return
       }
 
@@ -1412,6 +1493,7 @@ export default {
         this.hasUnreadStageUpdate = true
         this.stageUpdateCount += 1
         this.hasShownAnyStagePrompt = true
+        this.persistLocalSessionState()
         return
       }
     },
@@ -1430,6 +1512,7 @@ export default {
 
       this.hasUnreadStageUpdate = false
       this.stageDrawerOpen = true
+      this.persistLocalSessionState()
     },
 
     closeStageDrawer() {
@@ -1479,6 +1562,7 @@ export default {
         }
 
         this.lastStageDigest = this.buildStageDigest(this.stageView, this.stageMeta)
+        this.persistLocalSessionState()
       } catch (error) {
         this.errorMessage = `阶段反馈失败：${error.message}`
       } finally {
@@ -1527,6 +1611,7 @@ export default {
 
         this.lastStageDigest = this.buildStageDigest(this.stageView, this.stageMeta)
         this.hasUnreadStageUpdate = false
+        this.persistLocalSessionState()
       } catch (error) {
         this.errorMessage = `切换阶段失败：${error.message}`
       } finally {
@@ -1549,20 +1634,39 @@ export default {
       clearTimeout(this.threadScrollHideTimer)
       this.threadScrollHideTimer = null
     }
+    if (this.sessionClockTimer) {
+      clearInterval(this.sessionClockTimer)
+      this.sessionClockTimer = null
+    }
+    this.persistLocalSessionState()
     window.removeEventListener('resize', this.updateViewportMode)
   },
 
   mounted() {
     this.tickQuestionPlayback = this.tickQuestionPlayback.bind(this)
-    this.conversationId = this.buildConversationId()
+    this.clockNowMs = Date.now()
+    this.sessionClockTimer = setInterval(this.tickSessionClock, 15000)
     this.updateViewportMode()
     window.addEventListener('resize', this.updateViewportMode)
+
+    const recovered = this.loadLocalSessionState()
+    if (!recovered) {
+      this.conversationId = this.buildConversationId()
+      this.sessionStartedAt = Date.now()
+      this.elapsedBeforeSessionMs = 0
+    }
 
     if (this.prefetchedFirstQuestionReady && this.prefetchedFirstQuestion) {
       this.applyFirstQuestionPayload(this.prefetchedFirstQuestion)
       if (this.$store?.commit) {
         this.$store.commit('reset_first_question')
       }
+      return
+    }
+
+    if (recovered) {
+      this.loading = false
+      this.errorMessage = ''
       return
     }
 
@@ -1646,50 +1750,12 @@ export default {
   grid-template-columns: minmax(0, 720px) minmax(320px, 380px);
 }
 
-.insight-panel {
-  position: fixed;
-  right: 22px;
-  top: 96px;
-  width: 260px;
-  padding: 14px 14px 12px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(31, 32, 35, 0.08);
-  box-shadow: 0 10px 30px rgba(24, 26, 31, 0.08);
-  backdrop-filter: blur(8px);
-  z-index: 3;
-}
-
-.insight-panel__title {
-  margin: 0 0 10px;
-  font-size: 14px;
-  color: #2a2d35;
-}
-
-.insight-panel__list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.insight-panel__item {
-  font-size: 13px;
-  line-height: 1.55;
-  color: #3b3f48;
-  padding: 9px 10px;
-  border-radius: 10px;
-  background: #f4f6fb;
-}
-
-.insight-panel__empty {
+.chat-stage-bar__meta {
+  margin-top: 6px;
   font-size: 12px;
-  color: #8d92a0;
-}
-
-@media (max-width: 1200px) {
-  .insight-panel {
-    display: none;
-  }
+  color: #7f8594;
+  display: flex;
+  gap: 14px;
 }
 
 .questions-container {
