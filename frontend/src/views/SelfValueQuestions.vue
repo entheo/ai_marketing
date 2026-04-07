@@ -58,7 +58,10 @@
                   v-if="requestingQuestion"
                   class="chat-msg chat-msg--assistant chat-msg--streaming"
                 >
-                  <div class="chat-msg__text" v-html="renderChatMarkdown('思考中…')"></div>
+                  <div
+                    class="chat-msg__text"
+                    v-html="renderChatMarkdown(streamingAssistantText || '思考中…')"
+                  ></div>
                 </div>
               </div>
 
@@ -1134,6 +1137,12 @@ export default {
       }
 
       if (payload.event === 'message_chunk') {
+        const chunkText =
+          this.extractPartialQuestionText(payload) ||
+          String(payload.content || '')
+        if (chunkText) {
+          this.streamingAssistantText += chunkText
+        }
         this.requestingQuestion = true
         this.scrollChatToBottom()
         return
