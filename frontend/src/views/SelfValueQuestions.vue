@@ -13,139 +13,67 @@
       <div class="questions-layout">
         <div class="questions-container">
           <section class="questions-main">
-            <div class="question-stage">
-              <div
-                class="question-title-wrap"
-                :class="{ 'question-title-wrap--thinking': isQuestionBusy }"
-              >
-                <h1 class="questions-title" :class="questionVisualSizeClass">
-                  <template v-if="requestingQuestion && !hasAnyStreamedQuestion">
-                    <span class="gray">思考…</span><span class="thinking-caret"></span>
-                  </template>
-
-                  <template v-else-if="hasAnyStreamedQuestion">
-                    <span>{{ streamedQuestionStableText }}</span>
-                    <span
-                      v-if="streamedQuestionPendingChar"
-                      class="stream-char"
-                    >{{ streamedQuestionPendingChar }}</span>
-                    <span class="thinking-caret"></span>
-                  </template>
-
-                  <template v-else>
-                    {{ currentQuestion || '' }}
-                  </template>
-                </h1>
-
-                <p v-if="!loading" class="questions-hint">
-                  {{ questionHintText }}
-                </p>
+            <div class="chat-stage-bar">
+              <div class="chat-stage-bar__stage">
+                {{ stageProgressText }}
               </div>
-
-              <div v-if="loading" class="questions-status">
-                正在请求问题……
+              <div class="chat-stage-bar__hint">
+                {{ stageTimelineHint }}
+              </div>
+              <div class="chat-stage-bar__meta">
+                <span>累计轮次：{{ round }}</span>
+                <span>累计时长：{{ cumulativeDurationText }}</span>
               </div>
             </div>
 
-            <div class="answer-stage">
+            <div class="chat-body">
               <div
-                class="question-answer-area"
-                :class="{ 'question-answer-area--thinking': isAnswerDimmed }"
+                ref="chatThread"
+                class="chat-thread"
+                :class="{ 'chat-thread--scrolling': isThreadScrolling }"
+                @scroll.passive="handleThreadScroll"
               >
                 <div
-                  v-if="questionType === 'text'"
-                  class="question-breath-wrap question-input-wrap"
+                  v-for="item in dialogItems"
+                  :key="item.id"
+                  class="chat-msg"
+                  :class="[
+                    item.role === 'user' ? 'chat-msg--user' : 'chat-msg--assistant'
+                  ]"
                 >
-                  <textarea
-                    v-model="answerText"
-                    class="question-textarea"
-                    placeholder="在这里慢慢写下你的想法。"
-                    :disabled="isQuestionBusy || !answerRevealReady"
-                  ></textarea>
+                  <div
+                    class="chat-msg__text"
+                    v-html="renderChatMarkdown(item.text)"
+                  ></div>
                 </div>
-
                 <div
-                  v-else-if="questionType === 'single_choice'"
-                  class="question-breath-wrap question-options-wrap"
+                  v-if="requestingQuestion"
+                  class="chat-msg chat-msg--assistant chat-msg--streaming"
                 >
-                  <div class="question-options">
-                    <label
-                      v-for="(option, index) in questionOptions"
-                      :key="index"
-                      class="question-option"
-                      :class="{ 'question-option--active': selectedOption === option }"
-                    >
-                      <input
-                        v-model="selectedOption"
-                        type="radio"
-                        name="question-option"
-                        :value="option"
-                        :disabled="isQuestionBusy || !answerRevealReady"
-                      />
-                      <span>{{ option }}</span>
-                    </label>
-                  </div>
+                  <div class="chat-msg__text" v-html="renderChatMarkdown('思考中…')"></div>
                 </div>
+              </div>
+
+              <div v-if="errorMessage" class="questions-error">
+                {{ errorMessage }}
               </div>
             </div>
 
-            <div
-              v-if="showStageInsightLink"
-              class="question-side-link-row question-side-link-row--intro"
-            >
-              <button
-                class="question-side-link"
-                type="button"
+            <div class="chat-composer">
+              <textarea
+                v-model="answerText"
+                class="chat-composer__input"
+                placeholder="继续说说你的真实感受…"
                 :disabled="isQuestionBusy"
-                @click="openStageDrawer"
-              >
-                <span class="question-side-link__icon" aria-hidden="true">
-                  <svg viewBox="0 0 20 20" fill="none">
-                    <path
-                      d="M4.5 10h11"
-                      stroke="currentColor"
-                      stroke-width="1.4"
-                      stroke-linecap="round"
-                    />
-                    <path
-                      d="M10 4.5l5.5 5.5L10 15.5"
-                      stroke="currentColor"
-                      stroke-width="1.4"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                </span>
-                <span class="question-side-link__text">
-                  {{ stageInsightLinkText }}
-                </span>
-              </button>
-            </div>
-
-            <div v-if="errorMessage" class="questions-error">
-              {{ errorMessage }}
-            </div>
-
-            <div
-              class="questions-actions"
-              :class="{ 'questions-actions--thinking': isAnswerDimmed }"
-            >
-              <button
-                class="question-btn question-btn--ghost"
-                type="button"
-                :disabled="isQuestionBusy || !answerRevealReady"
-                @click="goBack"
-              >
-                返回上一页
-              </button>
-
+                @keydown.enter.exact.prevent="goNext"
+              ></textarea>
               <button
                 class="question-btn question-btn--solid"
                 type="button"
-                :disabled="isQuestionBusy || !answerRevealReady"
+                :disabled="isQuestionBusy"
                 @click="goNext"
               >
-                {{ requestingQuestion ? '正在整理…' : '下一步' }}
+                {{ requestingQuestion ? '发送中…' : '发送' }}
               </button>
             </div>
           </section>
@@ -302,21 +230,6 @@
           </div>
         </aside>
 
-        <aside class="insight-panel">
-          <h3 class="insight-panel__title">已留下来的</h3>
-          <div v-if="insightCards.length" class="insight-panel__list">
-            <div
-              v-for="item in insightCards"
-              :key="item.id"
-              class="insight-panel__item"
-            >
-              {{ item.text }}
-            </div>
-          </div>
-          <div v-else class="insight-panel__empty">
-            暂时还没有确认留下的内容
-          </div>
-        </aside>
       </div>
     </div>
 
@@ -339,7 +252,9 @@ export default {
       loading: true,
       errorMessage: '',
       currentQuestion: '',
+      currentMainDisplayText: '',
       currentQuestionLengthHint: 'medium',
+      dialogItems: [],
       questionType: 'text',
       questionOptions: [],
       answerText: '',
@@ -360,6 +275,7 @@ export default {
       askStreamComplete: false,
       streamedQuestionStableText: '',
       streamedQuestionPendingChar: '',
+      streamingAssistantText: '',
       playbackRafId: null,
       playbackLastTs: 0,
       playbackAccumulator: 0,
@@ -395,7 +311,13 @@ export default {
       lastStageDigest: '',
       hasShownAnyStagePrompt: false,
       stageInlineFlash: false,
-      stageInlineFlashTimer: null
+      stageInlineFlashTimer: null,
+      isThreadScrolling: false,
+      threadScrollHideTimer: null,
+      sessionClockTimer: null,
+      sessionStartedAt: Date.now(),
+      elapsedBeforeSessionMs: 0,
+      clockNowMs: Date.now()
     }
   },
 
@@ -429,7 +351,7 @@ export default {
       if (this.hasAnyStreamedQuestion) {
         return this.targetQuestionText || (this.streamedQuestionStableText + this.streamedQuestionPendingChar)
       }
-      return this.currentQuestion || ''
+      return this.currentMainDisplayText || this.currentQuestion || ''
     },
 
     activeQuestionLengthHint() {
@@ -478,11 +400,7 @@ export default {
     },
 
     showStageInsightLink() {
-      return (
-        this.answerRevealReady &&
-        !this.isQuestionBusy &&
-        this.hasUnreadStageUpdate
-      )
+      return false
     },
 
     stageInsightLinkText() {
@@ -504,10 +422,206 @@ export default {
         judgements: getLevel(this.normalizedJudgements.length, 2),
         candidates: getLevel(this.normalizedCandidates.length, 2)
       }
+    },
+
+    stageProgressText() {
+      const stageName = String(this.stageView?.stage_name || '').trim()
+      if (stageName) return `当前阶段：${stageName}`
+      if (this.stageMeta?.current_stage_id) {
+        return `当前阶段：${this.stageMeta.current_stage_id}`
+      }
+      return '当前阶段：探索中'
+    },
+
+    stageTimelineHint() {
+      if (this.stageMeta?.can_transition) return '当前信息已较完整，可准备收束'
+      if (this.round <= 2) return '你正在探索早期，预计还需 6~8 轮'
+      if (this.round <= 5) return '你正在形成关键线索，预计还需 4~6 轮'
+      if (this.round <= 8) return '你正在接近阶段收束，预计还需 2~4 轮'
+      return '你已进入深挖后期，可根据收获决定是否收束'
+    },
+
+    cumulativeElapsedMs() {
+      const currentSession = Math.max(0, this.clockNowMs - this.sessionStartedAt)
+      return this.elapsedBeforeSessionMs + currentSession
+    },
+
+    cumulativeDurationText() {
+      const totalMinutes = Math.floor(this.cumulativeElapsedMs / 60000)
+      if (totalMinutes < 1) return '<1 分钟'
+      const hours = Math.floor(totalMinutes / 60)
+      const minutes = totalMinutes % 60
+      if (hours <= 0) return `${minutes} 分钟`
+      return `${hours} 小时 ${minutes} 分钟`
     }
   },
 
   methods: {
+    getSessionStorageKey() {
+      return 'self_value_questions_session_v1'
+    },
+
+    loadLocalSessionState() {
+      try {
+        const raw = window.localStorage.getItem(this.getSessionStorageKey())
+        if (!raw) return false
+        const parsed = JSON.parse(raw)
+        if (!parsed || typeof parsed !== 'object') return false
+        if (!parsed.conversationId) return false
+
+        this.conversationId = parsed.conversationId
+        this.round = Number(parsed.round) > 0 ? Number(parsed.round) : 1
+        this.dialogItems = Array.isArray(parsed.dialogItems) ? parsed.dialogItems : []
+        this.qaHistory = Array.isArray(parsed.qaHistory) ? parsed.qaHistory : []
+        this.currentQuestion = String(parsed.currentQuestion || '')
+        this.currentMainDisplayText = String(parsed.currentMainDisplayText || '')
+        this.currentQuestionLengthHint = String(parsed.currentQuestionLengthHint || 'medium')
+        this.questionType = this.normalizeQuestionType(parsed.questionType || 'text')
+        this.questionOptions = Array.isArray(parsed.questionOptions) ? parsed.questionOptions : []
+        this.stageView = parsed.stageView || this.stageView
+        this.stageMeta = parsed.stageMeta || this.stageMeta
+        this.stageState = parsed.stageState || null
+        this.lastStageDigest = String(parsed.lastStageDigest || '')
+        this.insightCards = Array.isArray(parsed.insightCards) ? parsed.insightCards : []
+        this.pendingInsightCandidate = parsed.pendingInsightCandidate || null
+        this.elapsedBeforeSessionMs = Math.max(0, Number(parsed.elapsedMs || 0))
+        this.sessionStartedAt = Date.now()
+
+        return this.dialogItems.length > 0 || !!this.currentQuestion
+      } catch (error) {
+        return false
+      }
+    },
+
+    persistLocalSessionState() {
+      if (!this.conversationId) return
+      const payload = {
+        conversationId: this.conversationId,
+        round: this.round,
+        dialogItems: this.dialogItems,
+        qaHistory: this.qaHistory,
+        currentQuestion: this.currentQuestion,
+        currentMainDisplayText: this.currentMainDisplayText,
+        currentQuestionLengthHint: this.currentQuestionLengthHint,
+        questionType: this.questionType,
+        questionOptions: this.questionOptions,
+        stageView: this.stageView,
+        stageMeta: this.stageMeta,
+        stageState: this.stageState,
+        lastStageDigest: this.lastStageDigest,
+        insightCards: this.insightCards,
+        pendingInsightCandidate: this.pendingInsightCandidate,
+        elapsedMs: this.cumulativeElapsedMs
+      }
+      try {
+        window.localStorage.setItem(this.getSessionStorageKey(), JSON.stringify(payload))
+      } catch (error) {
+        // ignore storage write errors
+      }
+    },
+
+    tickSessionClock() {
+      this.clockNowMs = Date.now()
+    },
+
+    appendDialogItem(role, text) {
+      const normalizedRole = role === 'user' ? 'user' : 'assistant'
+      const normalizedText = String(text || '').trim()
+      if (!normalizedText) return
+
+      const prev = this.dialogItems[this.dialogItems.length - 1]
+      if (prev && prev.role === normalizedRole && prev.text === normalizedText) {
+        return
+      }
+
+      this.dialogItems.push({
+        id: `dialog_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        role: normalizedRole,
+        text: normalizedText
+      })
+
+      if (this.dialogItems.length > 14) {
+        this.dialogItems = this.dialogItems.slice(-14)
+      }
+
+      this.scrollChatToBottom()
+      this.persistLocalSessionState()
+    },
+
+    scrollChatToBottom() {
+      this.$nextTick(() => {
+        const el = this.$refs.chatThread
+        if (!el) return
+        el.scrollTop = el.scrollHeight
+      })
+    },
+
+    handleThreadScroll() {
+      this.isThreadScrolling = true
+      if (this.threadScrollHideTimer) {
+        clearTimeout(this.threadScrollHideTimer)
+      }
+      this.threadScrollHideTimer = setTimeout(() => {
+        this.isThreadScrolling = false
+        this.threadScrollHideTimer = null
+      }, 560)
+    },
+
+    renderChatMarkdown(text) {
+      const raw = String(text || '')
+      const escaped = raw
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+
+      const withInline = value =>
+        value.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+
+      const lines = escaped.split('\n')
+      const chunks = []
+      let listBuffer = []
+      let listType = ''
+
+      const flushList = () => {
+        if (!listBuffer.length) return
+        const tag = listType === 'ol' ? 'ol' : 'ul'
+        chunks.push(`<${tag}>${listBuffer.join('')}</${tag}>`)
+        listBuffer = []
+        listType = ''
+      }
+
+      lines.forEach(line => {
+        const ordered = line.match(/^\s*\d+\.\s+(.+)$/)
+        const unordered = line.match(/^\s*-\s+(.+)$/)
+
+        if (ordered) {
+          if (listType && listType !== 'ol') flushList()
+          listType = 'ol'
+          listBuffer.push(`<li>${withInline(ordered[1])}</li>`)
+          return
+        }
+
+        if (unordered) {
+          if (listType && listType !== 'ul') flushList()
+          listType = 'ul'
+          listBuffer.push(`<li>${withInline(unordered[1])}</li>`)
+          return
+        }
+
+        flushList()
+        if (!line.trim()) {
+          chunks.push('<br />')
+          return
+        }
+        chunks.push(`<p>${withInline(line)}</p>`)
+      })
+
+      flushList()
+      return chunks.join('')
+    },
+
     triggerStageInlineFlash() {
       if (this.stageInlineFlashTimer) {
         clearTimeout(this.stageInlineFlashTimer)
@@ -555,7 +669,7 @@ export default {
     },
 
     bindQuestionMetaFromMessage(message, fallbackQuestion = '') {
-      const finalQuestion = this.extractMessageText(message) || fallbackQuestion || ''
+      const finalQuestion = this.extractQuestionText(message) || fallbackQuestion || ''
       this.currentQuestion = finalQuestion
       this.currentQuestionLengthHint =
         message?.question_length_hint || this.inferQuestionLengthHint(finalQuestion)
@@ -569,16 +683,38 @@ export default {
       this.questionOptions = nextOptions
     },
 
-    extractMessageText(message) {
+    bindMainDisplayTextFromMessage(message, fallbackText = '') {
+      this.currentMainDisplayText = this.extractMainDisplayText(message) || fallbackText || ''
+    },
+
+    extractQuestionText(message) {
       if (!message || typeof message !== 'object') return ''
       return (
+        message.question ||
         message.text ||
         message.content ||
         message.display_text ||
-        message.question ||
         message.message ||
         ''
       )
+    },
+
+    extractMainDisplayText(message) {
+      if (!message || typeof message !== 'object') return ''
+      return (
+        message.text ||
+        message.message ||
+        message.content ||
+        message.summary ||
+        message.report ||
+        message.next_action ||
+        message.question ||
+        ''
+      )
+    },
+
+    extractMessageText(message) {
+      return this.extractQuestionText(message)
     },
 
     extractMessageQuestionType(message) {
@@ -607,11 +743,17 @@ export default {
       this.loading = false
       this.errorMessage = ''
 
+      const firstQuestion = this.extractQuestionText(message) || '未返回问题内容'
+      const firstDisplayText = this.extractMainDisplayText(message) || firstQuestion
+
       this.bindQuestionMetaFromMessage(
         message,
-        this.extractMessageText(message) || '未返回问题内容'
+        firstQuestion
       )
+      this.bindMainDisplayTextFromMessage(message, firstDisplayText)
+      this.appendDialogItem('assistant', firstDisplayText)
       this.handleInsightSignals(data)
+      this.persistLocalSessionState()
 
       if (stage) {
         this.receiveStagePayload(stage, meta || {}, stageState, {
@@ -620,35 +762,25 @@ export default {
         })
       }
 
-      const firstQuestion = this.currentQuestion || '未返回问题内容'
       this.playLocalQuestion(
-        firstQuestion,
-        message?.question_length_hint || this.inferQuestionLengthHint(firstQuestion)
+        firstDisplayText,
+        message?.question_length_hint || this.inferQuestionLengthHint(firstDisplayText)
       )
     },
 
     playLocalQuestion(questionText, lengthHint = '') {
-      this.resetAskStreamingState()
-      this.answerRevealReady = false
+      this.currentMainDisplayText = questionText || ''
+      this.currentQuestionLengthHint = lengthHint || this.inferQuestionLengthHint(questionText)
       this.requestingQuestion = false
-      this.playingQuestion = true
-      this.targetQuestionText = questionText || ''
-      this.targetQuestionLengthHint = lengthHint || this.inferQuestionLengthHint(questionText)
-      this.lockedStreamingLengthHint = this.targetQuestionLengthHint || 'medium'
-      this.askStreamComplete = true
-      this.ensurePlaybackRunning()
+      this.playingQuestion = false
+      this.answerRevealReady = true
     },
 
     getCurrentAnswer() {
-      return this.questionType === 'single_choice'
-        ? this.selectedOption
-        : this.answerText.trim()
+      return this.answerText.trim()
     },
 
     validateCurrentAnswer(answer) {
-      if (this.questionType === 'single_choice') {
-        return !!answer
-      }
       return !!String(answer || '').trim()
     },
 
@@ -765,32 +897,33 @@ export default {
 
     applyAskMessageDone(data) {
       const message = data?.message || data || {}
-      const finalQuestion =
-        this.extractMessageText(message) ||
+      const finalQuestion = this.extractQuestionText(message) || this.currentQuestion || ''
+      const finalDisplayText =
+        this.extractMainDisplayText(message) ||
         this.targetQuestionText ||
         (this.streamedQuestionStableText + this.streamedQuestionPendingChar) ||
-        '未返回问题内容'
+        finalQuestion ||
+        '未返回内容'
 
       this.bindQuestionMetaFromMessage(
-        { ...message, text: finalQuestion },
+        { ...message, question: finalQuestion },
         finalQuestion
       )
+      this.bindMainDisplayTextFromMessage(
+        { ...message, text: finalDisplayText },
+        finalDisplayText
+      )
+      this.appendDialogItem('assistant', finalDisplayText)
 
       this.round += 1
-      this.targetQuestionText = finalQuestion
-      this.targetQuestionLengthHint =
-        message?.question_length_hint || this.inferQuestionLengthHint(finalQuestion)
-
-      if (!this.lockedStreamingLengthHint) {
-        this.lockedStreamingLengthHint = this.targetQuestionLengthHint || 'medium'
-      }
-
-      this.currentQuestionLengthHint = this.lockedStreamingLengthHint
-      this.askStreamComplete = true
-      this.playingQuestion = true
-      this.answerRevealReady = false
+      this.currentQuestionLengthHint =
+        message?.question_length_hint || this.inferQuestionLengthHint(finalDisplayText)
+      this.requestingQuestion = false
+      this.playingQuestion = false
+      this.streamingAssistantText = ''
+      this.answerRevealReady = true
       this.handleInsightSignals(data)
-      this.ensurePlaybackRunning()
+      this.persistLocalSessionState()
     },
 
     handleInsightSignals(payload) {
@@ -816,6 +949,7 @@ export default {
           text: candidateInsight
         }
       }
+      this.persistLocalSessionState()
     },
 
     extractQuestionFromJsonText(raw) {
@@ -893,24 +1027,8 @@ export default {
       }
 
       if (payload.event === 'message_chunk') {
-        const rawChunk =
-          String(payload?.raw || '') ||
-          String(payload?.content || '') ||
-          String(payload?.delta || '')
-
-        if (rawChunk) {
-          this.rawAskBuffer += rawChunk
-        }
-
-        const partialQuestion =
-          this.extractPartialQuestionText(payload) ||
-          this.extractQuestionFromJsonText(this.rawAskBuffer)
-
-        if (partialQuestion && partialQuestion.length >= this.targetQuestionText.length) {
-          this.targetQuestionText = partialQuestion
-          this.playingQuestion = true
-          this.ensurePlaybackRunning()
-        }
+        this.requestingQuestion = true
+        this.scrollChatToBottom()
         return
       }
 
@@ -1000,27 +1118,21 @@ export default {
     },
 
     async goNext() {
-      if (this.isQuestionBusy || !this.answerRevealReady) return
+      if (this.isQuestionBusy) return
 
       const currentAnswer = this.getCurrentAnswer()
 
       if (!this.validateCurrentAnswer(currentAnswer)) {
-        this.errorMessage = this.questionType === 'single_choice'
-          ? '请先选择一个选项。'
-          : '请先输入你的回答。'
+        this.errorMessage = '请先输入你的回答。'
         return
       }
 
       this.requestingQuestion = true
       this.playingQuestion = false
-      this.answerRevealReady = false
+      this.answerRevealReady = true
+      this.streamingAssistantText = ''
       this.errorMessage = ''
       this.resetAskStreamingState()
-      this.streamedQuestionStableText = ''
-      this.streamedQuestionPendingChar = ''
-      this.targetQuestionText = ''
-      this.rawAskBuffer = ''
-      this.lockedStreamingLengthHint = 'medium'
 
       this.qaHistory.push({
         round: this.round,
@@ -1029,6 +1141,8 @@ export default {
         options: this.questionType === 'single_choice' ? [...this.questionOptions] : [],
         answer: currentAnswer
       })
+      this.appendDialogItem('user', currentAnswer)
+      this.persistLocalSessionState()
 
       try {
         const response = await fetch('http://127.0.0.1:8002/api/advice/stream/', {
@@ -1325,6 +1439,7 @@ export default {
       }
       this.stageState = stageState || this.stageState
       this.lastStageDigest = this.buildStageDigest(stageView, meta)
+      this.persistLocalSessionState()
     },
 
     receiveStagePayload(stage, meta = {}, stageState = null, options = {}) {
@@ -1359,6 +1474,7 @@ export default {
         this.pendingStageMeta = null
         this.pendingStageState = null
         this.triggerStageInlineFlash()
+        this.persistLocalSessionState()
         return
       }
 
@@ -1377,6 +1493,7 @@ export default {
         this.hasUnreadStageUpdate = true
         this.stageUpdateCount += 1
         this.hasShownAnyStagePrompt = true
+        this.persistLocalSessionState()
         return
       }
     },
@@ -1395,6 +1512,7 @@ export default {
 
       this.hasUnreadStageUpdate = false
       this.stageDrawerOpen = true
+      this.persistLocalSessionState()
     },
 
     closeStageDrawer() {
@@ -1444,6 +1562,7 @@ export default {
         }
 
         this.lastStageDigest = this.buildStageDigest(this.stageView, this.stageMeta)
+        this.persistLocalSessionState()
       } catch (error) {
         this.errorMessage = `阶段反馈失败：${error.message}`
       } finally {
@@ -1492,6 +1611,7 @@ export default {
 
         this.lastStageDigest = this.buildStageDigest(this.stageView, this.stageMeta)
         this.hasUnreadStageUpdate = false
+        this.persistLocalSessionState()
       } catch (error) {
         this.errorMessage = `切换阶段失败：${error.message}`
       } finally {
@@ -1510,20 +1630,43 @@ export default {
       clearTimeout(this.stageInlineFlashTimer)
       this.stageInlineFlashTimer = null
     }
+    if (this.threadScrollHideTimer) {
+      clearTimeout(this.threadScrollHideTimer)
+      this.threadScrollHideTimer = null
+    }
+    if (this.sessionClockTimer) {
+      clearInterval(this.sessionClockTimer)
+      this.sessionClockTimer = null
+    }
+    this.persistLocalSessionState()
     window.removeEventListener('resize', this.updateViewportMode)
   },
 
   mounted() {
     this.tickQuestionPlayback = this.tickQuestionPlayback.bind(this)
-    this.conversationId = this.buildConversationId()
+    this.clockNowMs = Date.now()
+    this.sessionClockTimer = setInterval(this.tickSessionClock, 15000)
     this.updateViewportMode()
     window.addEventListener('resize', this.updateViewportMode)
+
+    const recovered = this.loadLocalSessionState()
+    if (!recovered) {
+      this.conversationId = this.buildConversationId()
+      this.sessionStartedAt = Date.now()
+      this.elapsedBeforeSessionMs = 0
+    }
 
     if (this.prefetchedFirstQuestionReady && this.prefetchedFirstQuestion) {
       this.applyFirstQuestionPayload(this.prefetchedFirstQuestion)
       if (this.$store?.commit) {
         this.$store.commit('reset_first_question')
       }
+      return
+    }
+
+    if (recovered) {
+      this.loading = false
+      this.errorMessage = ''
       return
     }
 
@@ -1535,6 +1678,7 @@ export default {
 <style scoped>
 .questions-page {
   position: relative;
+  height: 100dvh;
   min-height: 100vh;
   overflow: hidden;
   background:
@@ -1579,22 +1723,25 @@ export default {
 }
 
 .questions-shell {
+  box-sizing: border-box;
   position: relative;
   z-index: 2;
-  min-height: 100vh;
+  height: 100%;
+  min-height: 0;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  padding: 26px 20px 28px;
+  padding: 18px 20px calc(16px + env(safe-area-inset-bottom, 0px));
 }
 
 .questions-layout {
   width: 100%;
+  height: 100%;
   max-width: 1180px;
   display: grid;
   grid-template-columns: minmax(0, 760px);
   justify-content: center;
-  align-items: start;
+  align-items: stretch;
   gap: 22px;
   transition: grid-template-columns 0.28s ease;
 }
@@ -1603,62 +1750,195 @@ export default {
   grid-template-columns: minmax(0, 720px) minmax(320px, 380px);
 }
 
-.insight-panel {
-  position: fixed;
-  right: 22px;
-  top: 96px;
-  width: 260px;
-  padding: 14px 14px 12px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(31, 32, 35, 0.08);
-  box-shadow: 0 10px 30px rgba(24, 26, 31, 0.08);
-  backdrop-filter: blur(8px);
-  z-index: 3;
-}
-
-.insight-panel__title {
-  margin: 0 0 10px;
-  font-size: 14px;
-  color: #2a2d35;
-}
-
-.insight-panel__list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.insight-panel__item {
-  font-size: 13px;
-  line-height: 1.55;
-  color: #3b3f48;
-  padding: 9px 10px;
-  border-radius: 10px;
-  background: #f4f6fb;
-}
-
-.insight-panel__empty {
+.chat-stage-bar__meta {
+  margin-top: 6px;
   font-size: 12px;
-  color: #8d92a0;
-}
-
-@media (max-width: 1200px) {
-  .insight-panel {
-    display: none;
-  }
+  color: #7f8594;
+  display: flex;
+  gap: 14px;
 }
 
 .questions-container {
   width: 100%;
   max-width: 760px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .questions-main {
   position: relative;
-  display: grid;
-  grid-template-rows: 210px 300px auto auto;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  gap: 12px;
+}
+
+.chat-stage-bar {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 2px 0;
+}
+
+.chat-stage-bar__stage {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #5f5a52;
+}
+
+.chat-stage-bar__hint {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #8e8579;
+}
+
+.chat-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chat-thread {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
   gap: 10px;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 8px 8px calc(26px + env(safe-area-inset-bottom, 0px));
+  scroll-padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.chat-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 100%;
+  padding: 0;
+}
+
+.chat-msg--assistant {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.chat-msg--user {
+  align-self: flex-end;
+  align-items: flex-end;
+  max-width: 100%;
+}
+
+.chat-msg--streaming {
+  opacity: 0.8;
+}
+
+.chat-msg__text {
+  font-size: 15px;
+  line-height: 1.72;
+  color: #37342e;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.chat-msg__text :deep(p) {
+  margin: 0 0 8px;
+}
+
+.chat-msg__text :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.chat-msg__text :deep(ul),
+.chat-msg__text :deep(ol) {
+  margin: 0;
+  padding-left: 1.25em;
+}
+
+.chat-msg__text :deep(li) {
+  margin: 0 0 4px;
+}
+
+.chat-msg--assistant .chat-msg__text {
+  max-width: 100%;
+  padding: 0 2px;
+}
+
+.chat-msg--user .chat-msg__text {
+  display: inline-block;
+  width: fit-content;
+  max-width: min(100%, clamp(300px, 58vw, 620px));
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(176, 164, 145, 0.32);
+  background: rgba(243, 236, 224, 0.72);
+}
+
+.chat-composer {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  flex: 0 0 auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 0 calc(18px + env(safe-area-inset-bottom, 0px));
+  background: transparent;
+  border-radius: 14px;
+  z-index: 2;
+}
+
+.chat-composer .question-btn--solid {
+  box-shadow: none;
+}
+
+.chat-composer__input {
+  width: 100%;
+  min-height: 72px;
+  max-height: 160px;
+  resize: none;
+  border: 1px solid rgba(176, 164, 145, 0.32);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 15px;
+  line-height: 1.55;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.chat-thread::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-thread::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-thread::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+  transition: background-color 0.18s ease;
+}
+
+.chat-thread:hover {
+  scrollbar-color: rgba(132, 124, 110, 0.2) transparent;
+}
+
+.chat-thread:hover::-webkit-scrollbar-thumb,
+.chat-thread--scrolling::-webkit-scrollbar-thumb {
+  background: rgba(132, 124, 110, 0.2);
+}
+
+.chat-thread--scrolling {
+  scrollbar-color: rgba(132, 124, 110, 0.2) transparent;
 }
 
 .question-stage {
@@ -2431,13 +2711,37 @@ export default {
 
 @media (max-width: 768px) {
   .questions-shell {
-    align-items: flex-start;
-    padding: 20px 16px 18px;
+    height: 100%;
+    min-height: 0;
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px));
   }
 
   .questions-main {
-    grid-template-rows: 188px 284px auto auto;
+    height: 100%;
+    gap: 10px;
+  }
+
+  .chat-thread {
+    padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+    scroll-padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .chat-msg--user {
+    max-width: 100%;
+  }
+
+  .chat-msg--user .chat-msg__text {
+    max-width: min(100%, 84vw);
+  }
+
+  .chat-composer {
+    grid-template-columns: 1fr;
     gap: 8px;
+    padding: 8px 0 calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .chat-composer .question-btn {
+    width: 100%;
   }
 
   .question-stage,
@@ -2544,7 +2848,7 @@ export default {
 
 @media (max-width: 430px) {
   .questions-main {
-    grid-template-rows: 180px 270px auto auto;
+    height: 100%;
   }
 
   .question-stage,

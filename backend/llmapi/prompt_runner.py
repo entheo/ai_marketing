@@ -68,6 +68,155 @@ class PromptRunner:
         except (TypeError, ValueError):
             return 1
 
+    def _is_raw_dialog_mode(self, context: Dict[str, Any]) -> bool:
+        mode = str(context.get("dialog_mode", "") or "").strip().lower()
+        return mode in ("raw_coach", "raw_coach_extreme", "raw", "free_chat")
+
+    def _build_prompt_for_mode(
+        self,
+        adapter: PromptAdapter,
+        raw_prompt: str,
+        context: Dict[str, Any],
+    ) -> str:
+        if not self._is_raw_dialog_mode(context):
+            return adapter.compile(raw_prompt=raw_prompt, context=context)
+
+        input_block = adapter._build_input_block(context)  # noqa: SLF001
+        return f"""
+{raw_prompt}
+
+{input_block}
+
+【raw_coach_extreme 模式】
+你现在处于高自由对话模式：
+1. 不需要输出 JSON
+2. 用自然中文直接对话
+3. 先回应用户刚才最关键的一点，再给出你的判断，然后自然推进下一个问题
+4. 避免模板化追问，避免空话
+5. 不要出现“承接/点亮/推进”这类过程标签词
+""".strip()
+
+    def _coerce_raw_text_result(self, raw_content: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        parsed = self._parse_json(raw_content)
+        if isinstance(parsed, dict) and parsed.get("status") != "error":
+            parsed = self._normalize_result(parsed)
+            parsed = self._repair_shape(parsed)
+            return parsed
+
+        text = str(raw_content or "").strip()
+        if not text:
+            text = "我先接住你刚才的表达。你愿意说说最近一次最有感觉的具体场景吗？"
+
+        text = text.replace("\r", "").strip()
+        if len(text) > 4000:
+            text = text[:4000].rstrip("，。、；：,.;: ")
+
+        inferred = self._infer_raw_status_from_text(text)
+        if inferred == "final_report":
+            return {
+                "status": "final_report",
+                "question_type": "",
+                "question": "",
+                "options": [],
+                "summary": text[:260],
+                "report": text,
+                "next_action": "",
+                "question_length_hint": "",
+                "should_end": True,
+                "can_summarize": False,
+            }
+
+        if inferred == "action_plan":
+            return {
+                "status": "action_plan",
+                "question_type": "",
+                "question": "",
+                "options": [],
+                "summary": text[:220],
+                "report": text,
+                "next_action": text[:180],
+                "question_length_hint": "",
+                "should_end": False,
+                "can_summarize": False,
+            }
+
+        if inferred == "stage_summary":
+            return {
+                "status": "stage_summary",
+                "question_type": "",
+                "question": "",
+                "options": [],
+                "summary": text,
+                "report": "",
+                "next_action": "",
+                "question_length_hint": "",
+                "should_end": False,
+                "can_summarize": False,
+            }
+
+        return {
+            "status": "ask",
+            "question_type": "text",
+            "question": text,
+            "options": [],
+            "summary": "",
+            "report": "",
+            "next_action": "",
+            "question_length_hint": self._calc_question_length_hint(text),
+            "should_end": False,
+            "can_summarize": self._safe_round(context) >= self.min_summary_round,
+        }
+
+    def _infer_raw_status_from_text(self, text: str) -> str:
+        value = str(text or "").strip()
+        if not value:
+            return "ask"
+
+        lowered = value.lower()
+        q_count = value.count("？") + value.count("?")
+
+        final_markers = (
+            "最终建议",
+            "阶段结论",
+            "可以先收束",
+            "我们先收束",
+            "可以结束这一阶段",
+            "final report",
+        )
+        if any(marker in value for marker in final_markers):
+            return "final_report"
+
+        action_markers = (
+            "下一步",
+            "行动建议",
+            "你可以先",
+            "今天就做",
+            "本周先做",
+            "action plan",
+        )
+        if any(marker in value for marker in action_markers) and q_count == 0:
+            return "action_plan"
+
+        summary_markers = (
+            "阶段总结",
+            "小结一下",
+            "总结一下",
+            "目前看",
+            "你现在的优势",
+            "核心线索",
+            "stage summary",
+        )
+        if any(marker in value for marker in summary_markers) and q_count == 0:
+            return "stage_summary"
+
+        # 无问号 + 多段内容，优先判为阶段总结而不是继续追问
+        long_form_separators = value.count("\n") + value.count("。") + value.count("- ")
+        if q_count == 0 and (len(value) >= 140 or long_form_separators >= 4):
+            return "stage_summary"
+
+        # 有问号默认继续 ask
+        return "ask"
+
     def _extract_json_text(self, raw_text: str) -> str:
         """
         尝试从模型返回中提取 JSON 字符串。
@@ -160,9 +309,9 @@ class PromptRunner:
         length = len((question or "").strip())
         if length == 0:
             return ""
-        if length <= 20:
+        if length <= 28:
             return "short"
-        if length <= 30:
+        if length <= 70:
             return "medium"
         return "long"
 
@@ -172,10 +321,22 @@ class PromptRunner:
         如果问题异常长，先做非常轻度的本地裁剪。
         """
         question = (question or "").strip().replace("\n", "").replace("\r", "")
-        if len(question) <= 36:
+        if len(question) <= 140:
             return question
 
-        trimmed = question[:36].rstrip("，。、；：,.;: ")
+        window = question[:140]
+        cut_pos = max(
+            window.rfind("。"),
+            window.rfind("！"),
+            window.rfind("？"),
+            window.rfind("."),
+            window.rfind("!"),
+            window.rfind("?"),
+        )
+        if cut_pos >= 40:
+            trimmed = window[:cut_pos + 1].rstrip("，。、；：,.;: ")
+        else:
+            trimmed = window.rstrip("，。、；：,.;: ")
         if not trimmed.endswith(("？", "?")):
             trimmed += "？"
         return trimmed
@@ -345,18 +506,20 @@ class PromptRunner:
 2. status 只能是 ask 或 clarify
 3. question_type 只能是 text 或 single_choice
 4. 如果输出 single_choice，必须提供至少 2 个选项
-5. 问题必须单句、不得换行、不得复合提问
-6. 问题优先控制在 18~28 个中文字符，极限不超过 36 个
+5. 问题不得换行、不得复合提问
+6. 问题优先控制在 28~88 个中文字符，极限不超过 140 个
 7. 不允许重复以下类型的抽象追问：
    - 你还有什么没说透
    - 如果继续往里走
    - 你最想再补充什么
-8. {stuck_instruction}
-9. 如果当前更适合停一下，也不要直接总结；而是问一个低压力、容易回答的小问题
-10. can_summarize:
+8. 问题可以用 1~2 句表达，但只能围绕一个问题焦点
+9. 在不生硬的前提下，尽量承接用户上一轮中的关键词或情绪线索
+10. {stuck_instruction}
+11. 如果当前更适合停一下，也不要直接总结；而是问一个低压力、容易回答的小问题
+12. can_summarize:
    - 如果 round >= {self.min_summary_round}，可设为 true
    - 否则必须为 false
-11. 不要输出 null，不要输出 markdown 代码块
+13. 不要输出 null，不要输出 markdown 代码块
 
 请直接输出最终 JSON。
 """.strip()
@@ -429,35 +592,11 @@ class PromptRunner:
         adapter: PromptAdapter,
     ) -> Dict[str, Any]:
         """
-        只在正常 continue 流程里处理“模型想总结，但当前不直接总结”的情况。
-        优先让模型二次改问，最后才兜底。
+        第一轮自然对话实验：
+        临时关闭 summary-like -> ask/clarify 的自动改写链路。
+        让模型原始 summary-like 输出直接透传。
         """
-        status = result.get("status", "")
-        round_num = self._safe_round(context)
-
-        if self._is_manual_summary_stage(context):
-            return result
-
-        if status not in self.SUMMARY_LIKE_STATUS:
-            return result
-
-        # 太早也不直接进总结，优先让模型重问
-        rewritten = self._rewrite_summary_to_followup_question(
-            adapter=adapter,
-            summary_like_result=result,
-            context=context,
-        )
-        if rewritten:
-            rewritten = self._normalize_result(rewritten)
-            rewritten = self._repair_shape(rewritten)
-            rewritten["can_summarize"] = round_num >= self.min_summary_round
-            return rewritten
-
-        # 最后兜底：只在重写失败时使用
-        return self._build_checkpoint_ask(
-            question="",
-            round_num=round_num,
-        )
+        return result
 
     def _basic_validate_response(self, result: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -531,7 +670,7 @@ class PromptRunner:
 
         rewrite_prompt = f"""
 你将收到一个已经生成但不符合输出约束的问题结果。
-你的任务不是改变业务方向，而是在尽量保留原意的前提下，把它改写成一个前端更易展示、更短、更稳的合法 JSON。
+你的任务不是改变业务方向，而是在尽量保留原意的前提下，把它改写成一个前端可展示、语气自然、信息更有密度的合法 JSON。
 
 当前上下文：
 - mode: {context.get("mode", "")}
@@ -548,14 +687,15 @@ class PromptRunner:
 改写要求：
 1. 保持 status 不变，仍然输出 "{status}"
 2. 保持问题意图尽量不变
-3. question 必须是单句、不得换行
-4. question 优先控制在 18~28 个中文字符之间，极限不超过 36 个
-5. 不得复合提问
-6. 如果 question_type = "single_choice"，必须保留 single_choice，并提供至少两个简短选项
-7. 如果 question_type = "text"，options 必须是 []
-8. 只输出一个合法 JSON 对象
-9. question_length_hint 必须正确填写：short / medium / long
-10. can_summarize 必须是 true 或 false
+3. question 不得换行
+4. question 优先控制在 28~88 个中文字符之间，极限不超过 140 个
+5. 问题可为 1~2 句，但只能围绕一个问题焦点
+6. 在不生硬的前提下，尽量承接用户上一轮中的关键词或情绪线索
+7. 如果 question_type = "single_choice"，必须保留 single_choice，并提供至少两个简短选项
+8. 如果 question_type = "text"，options 必须是 []
+9. 只输出一个合法 JSON 对象
+10. question_length_hint 必须正确填写：short / medium / long
+11. can_summarize 必须是 true 或 false
 
 请直接输出最终 JSON。
 """.strip()
@@ -666,11 +806,14 @@ class PromptRunner:
         raw_prompt = config["raw_prompt"]
         scene = config.get("scene", "universal")
         temperature = config.get("temperature", 1.2)
+        if self._is_raw_dialog_mode(kwargs):
+            temperature = min(1.5, max(temperature, 1.35))
 
         adapter = PromptAdapter(scene=scene)
-        rendered_prompt = adapter.compile(
+        rendered_prompt = self._build_prompt_for_mode(
+            adapter=adapter,
             raw_prompt=raw_prompt,
-            context=kwargs
+            context=kwargs,
         )
 
         messages = self.get_messages(rendered_prompt)
@@ -682,6 +825,9 @@ class PromptRunner:
         )
 
         raw_content = response.choices[0].message.content
+        if self._is_raw_dialog_mode(kwargs):
+            return self._coerce_raw_text_result(raw_content=raw_content, context=kwargs)
+
         result = self._parse_json(raw_content)
         result = self._finalize_result(result=result, context=kwargs, adapter=adapter)
         return result
@@ -706,11 +852,14 @@ class PromptRunner:
         raw_prompt = config["raw_prompt"]
         scene = config.get("scene", "universal")
         temperature = config.get("temperature", 1.2)
+        if self._is_raw_dialog_mode(kwargs):
+            temperature = min(1.5, max(temperature, 1.35))
 
         adapter = PromptAdapter(scene=scene)
-        rendered_prompt = adapter.compile(
+        rendered_prompt = self._build_prompt_for_mode(
+            adapter=adapter,
             raw_prompt=raw_prompt,
-            context=kwargs
+            context=kwargs,
         )
 
         messages = self.get_messages(rendered_prompt)
@@ -737,8 +886,11 @@ class PromptRunner:
                     "content": delta
                 }
 
-        result = self._parse_json(buffer)
-        result = self._finalize_result(result=result, context=kwargs, adapter=adapter)
+        if self._is_raw_dialog_mode(kwargs):
+            result = self._coerce_raw_text_result(raw_content=buffer, context=kwargs)
+        else:
+            result = self._parse_json(buffer)
+            result = self._finalize_result(result=result, context=kwargs, adapter=adapter)
 
         yield {
             "event": "done",
