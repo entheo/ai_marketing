@@ -271,6 +271,20 @@ class SelfValueBot:
                     }
                     return
 
+                # 先快速回传左侧消息，尽量缩短输入解锁等待时间。
+                fast_message = self.response_formatter._build_message_block(final_prompt_result)  # noqa: SLF001
+                insight_signal = self._build_insight_signal(
+                    prompt_result=final_prompt_result or {},
+                    context=context,
+                )
+                yield {
+                    "event": "message_done",
+                    "data": {
+                        **fast_message,
+                        **insight_signal,
+                    }
+                }
+
                 combined_result = self.stage_orchestrator.update_after_turn(
                     stage_state=stage_state,
                     prompt_result=final_prompt_result,
@@ -281,24 +295,13 @@ class SelfValueBot:
                 )
 
                 formatted_result = self.response_formatter.format_response(combined_result)
-                insight_signal = self._build_insight_signal(
-                    prompt_result=final_prompt_result or {},
-                    context=context,
-                )
-
-                yield {
-                    "event": "message_done",
-                    "data": {
-                        **formatted_result.get("message", {}),
-                        **insight_signal,
-                    }
-                }
 
                 yield {
                     "event": "stage_done",
                     "data": {
                         "stage": formatted_result.get("stage", {}),
                         "meta": formatted_result.get("meta", {}),
+                        "stage_state": formatted_result.get("stage_state"),
                     }
                 }
 
