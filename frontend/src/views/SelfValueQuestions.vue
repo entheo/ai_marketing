@@ -1815,7 +1815,7 @@ export default {
   padding: 8px 8px calc(26px + env(safe-area-inset-bottom, 0px));
   scroll-padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
   overscroll-behavior: contain;
-  scrollbar-width: thin;
+  scrollbar-width: none;
   scrollbar-color: transparent transparent;
 }
 
@@ -1915,7 +1915,9 @@ export default {
 }
 
 .chat-thread::-webkit-scrollbar {
-  width: 6px;
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .chat-thread::-webkit-scrollbar-track {
@@ -1926,19 +1928,6 @@ export default {
   background: transparent;
   border-radius: 999px;
   transition: background-color 0.18s ease;
-}
-
-.chat-thread:hover {
-  scrollbar-color: rgba(132, 124, 110, 0.2) transparent;
-}
-
-.chat-thread:hover::-webkit-scrollbar-thumb,
-.chat-thread--scrolling::-webkit-scrollbar-thumb {
-  background: rgba(132, 124, 110, 0.2);
-}
-
-.chat-thread--scrolling {
-  scrollbar-color: rgba(132, 124, 110, 0.2) transparent;
 }
 
 .question-stage {
@@ -2425,6 +2414,14 @@ export default {
   flex: 1;
   overflow-y: auto;
   padding: 18px 20px 20px;
+  scrollbar-width: none;
+  scrollbar-color: transparent transparent;
+}
+
+.stage-drawer-body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .stage-summary {
