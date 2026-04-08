@@ -23,6 +23,14 @@
               <div class="chat-stage-bar__meta">
                 <span>累计轮次：{{ round }}</span>
                 <span>累计时长：{{ cumulativeDurationText }}</span>
+                <button
+                  class="chat-stage-bar__restart"
+                  type="button"
+                  :disabled="isQuestionBusy"
+                  @click="openRestartConfirm"
+                >
+                  重新开始
+                </button>
               </div>
             </div>
 
@@ -65,7 +73,7 @@
                 class="chat-composer__input"
                 placeholder="继续说说你的真实感受…"
                 :disabled="isQuestionBusy"
-                @keydown.enter.exact.prevent="goNext"
+                @keydown.enter.exact="handleComposerEnter"
               ></textarea>
               <button
                 class="question-btn question-btn--solid"
@@ -240,6 +248,23 @@
         @click="closeStageDrawer"
       ></div>
     </transition>
+
+    <transition name="stage-overlay-fade">
+      <div v-if="restartConfirmOpen" class="restart-overlay">
+        <div class="restart-modal" role="dialog" aria-modal="true" aria-label="确认重新开始">
+          <h3 class="restart-modal__title">确认重新开始？</h3>
+          <p class="restart-modal__desc">将清空当前本地会话记录，且无法恢复。</p>
+          <div class="restart-modal__actions">
+            <button class="mini-btn mini-btn--ghost" type="button" @click="closeRestartConfirm">
+              再想想
+            </button>
+            <button class="mini-btn mini-btn--solid" type="button" @click="restartConversation">
+              确认清空并重开
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -317,7 +342,8 @@ export default {
       sessionClockTimer: null,
       sessionStartedAt: Date.now(),
       elapsedBeforeSessionMs: 0,
-      clockNowMs: Date.now()
+      clockNowMs: Date.now(),
+      restartConfirmOpen: false
     }
   },
 
@@ -522,6 +548,87 @@ export default {
 
     tickSessionClock() {
       this.clockNowMs = Date.now()
+    },
+
+    handleComposerEnter(event) {
+      if (this.isQuestionBusy) return
+
+      const isComposing = event?.isComposing || event?.keyCode === 229
+      if (isComposing) return
+
+      event.preventDefault()
+      this.goNext()
+    },
+
+    openRestartConfirm() {
+      if (this.isQuestionBusy) return
+      this.restartConfirmOpen = true
+    },
+
+    closeRestartConfirm() {
+      this.restartConfirmOpen = false
+    },
+
+    restartConversation() {
+      if (this.isQuestionBusy) return
+
+      this.restartConfirmOpen = false
+      this.resetAskStreamingState()
+      this.requestingQuestion = false
+      this.playingQuestion = false
+      this.answerRevealReady = true
+      this.errorMessage = ''
+      this.loading = true
+
+      this.round = 1
+      this.dialogItems = []
+      this.qaHistory = []
+      this.answerText = ''
+      this.selectedOption = ''
+      this.currentQuestion = ''
+      this.currentMainDisplayText = ''
+      this.currentQuestionLengthHint = 'medium'
+      this.questionType = 'text'
+      this.questionOptions = []
+
+      this.insightCards = []
+      this.pendingInsightCandidate = null
+
+      this.stageView = {
+        stage_name: '',
+        stage_summary: '',
+        findings: [],
+        judgements: [],
+        confirmation_candidates: []
+      }
+      this.stageMeta = {
+        can_transition: false,
+        current_stage_id: '',
+        current_maturity: ''
+      }
+      this.stageState = null
+
+      this.pendingStageView = null
+      this.pendingStageMeta = null
+      this.pendingStageState = null
+      this.hasUnreadStageUpdate = false
+      this.stageUpdateCount = 0
+      this.lastStageDigest = ''
+      this.hasShownAnyStagePrompt = false
+      this.stageDrawerOpen = false
+
+      this.elapsedBeforeSessionMs = 0
+      this.sessionStartedAt = Date.now()
+      this.clockNowMs = Date.now()
+
+      try {
+        window.localStorage.removeItem(this.getSessionStorageKey())
+      } catch (error) {
+        // ignore storage errors
+      }
+
+      this.conversationId = this.buildConversationId()
+      this.fetchFirstQuestion()
     },
 
     appendDialogItem(role, text) {
@@ -1756,6 +1863,64 @@ export default {
   color: #7f8594;
   display: flex;
   gap: 14px;
+  align-items: center;
+}
+
+.chat-stage-bar__restart {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: #7f8594;
+  font-size: 12px;
+  line-height: 1.2;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.chat-stage-bar__restart:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.restart-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 36;
+  background: rgba(22, 22, 24, 0.36);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.restart-modal {
+  width: min(430px, 100%);
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(31, 32, 35, 0.1);
+  box-shadow: 0 18px 50px rgba(22, 22, 26, 0.18);
+  padding: 18px 18px 16px;
+}
+
+.restart-modal__title {
+  margin: 0;
+  font-size: 17px;
+  color: #2a2d35;
+}
+
+.restart-modal__desc {
+  margin: 10px 0 0;
+  color: #646a78;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.restart-modal__actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .questions-container {
