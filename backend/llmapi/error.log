@@ -1,0 +1,4 @@
+[2026-04-09T12:44:56.084477+00:00] startup: base_url=https://chatgpt.com/backend-api path_style=wham
+[2026-04-09T12:44:56.172597+00:00] auth: mode=ChatGPT account_id=ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-09T12:44:56.172782+00:00] auth: set ChatGPT-Account-Id header: ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-09T12:44:59.533463+00:00] http.list_tasks: env=<all> limit=20 cursor_in=<none> cursor_out=<none> items=9
