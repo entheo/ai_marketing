@@ -1196,7 +1196,7 @@ export default {
     },
 
     async requestAdvice(payload) {
-      const response = await fetch('http://127.0.0.1:8002/api/advice/', {
+      const response = await fetch('/api/advice/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -1261,7 +1261,7 @@ export default {
       this.persistLocalSessionState()
 
       try {
-        const response = await fetch('http://127.0.0.1:8002/api/advice/stream/', {
+        const response = await fetch('/api/advice/stream/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1642,7 +1642,7 @@ export default {
       this.errorMessage = ''
 
       try {
-        const response = await fetch('http://127.0.0.1:8002/api/stage-feedback/', {
+        const response = await fetch('/api/stage-feedback/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1693,7 +1693,7 @@ export default {
       this.errorMessage = ''
 
       try {
-        const response = await fetch('http://127.0.0.1:8002/api/stage-transition/', {
+        const response = await fetch('/api/stage-transition/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
