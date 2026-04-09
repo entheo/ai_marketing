@@ -59,7 +59,7 @@ export default createStore({
     logIn({ commit }, user) {
       return new Promise((resolve, reject) => {
         axios({
-          url: 'http://localhost:8002/account/login/',
+          url: '/account/login/',
           data: user,
           method: 'POST'
         })
@@ -86,7 +86,7 @@ export default createStore({
     register(_, userData) {
       return new Promise((resolve, reject) => {
         axios({
-          url: 'http://localhost:8002/account/register/',
+          url: '/account/register/',
           data: userData,
           method: 'POST'
         })
@@ -116,7 +116,7 @@ checkAuth({ commit, state }) {
     }
 
     axios({
-      url: 'http://localhost:8002/account/auth/',
+      url: '/account/auth/',
       method: 'GET'
     })
       .then(resp => {
@@ -153,7 +153,7 @@ prefetchFirstQuestion({ commit, state }) {
 
   commit('set_first_question_loading', true)
 
-  return fetch('http://127.0.0.1:8002/api/advice/', {
+  return fetch('/api/advice/', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
