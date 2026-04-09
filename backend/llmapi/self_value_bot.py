@@ -31,6 +31,7 @@ self_value_bot.py
 import random
 import re
 import time
+import os
 from typing import Any, Dict, Optional
 
 from .prompt_runner import PromptRunner
@@ -57,6 +58,9 @@ class SelfValueBot:
         self.runner = PromptRunner(client=client, model=model)
         self.stage_orchestrator = StageOrchestrator(client=client, model=model)
         self.response_formatter = SelfValueResponseFormatter()
+        self.recent_window_rounds = max(1, int(os.getenv("SELF_VALUE_RECENT_WINDOW_ROUNDS", "6")))
+        self.long_term_summary_max_chars = max(120, int(os.getenv("SELF_VALUE_LONG_TERM_SUMMARY_MAX_CHARS", "500")))
+        self.summary_refresh_rounds = max(1, int(os.getenv("SELF_VALUE_SUMMARY_REFRESH_ROUNDS", "2")))
 
     def _build_context(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -76,11 +80,134 @@ class SelfValueBot:
             "round": 1,
             "answer": "",
             "qa_history": [],
+            "qa_history_summary": "",
             "conversation_id": "",
             "stage_state": None,
         }
         context.update(kwargs or {})
         return context
+
+    def _truncate_text(self, text: Any, max_chars: int) -> str:
+        value = str(text or "").strip()
+        if len(value) <= max_chars:
+            return value
+        return value[:max_chars].rstrip("，。、；：,.;: ") + "…"
+
+    def _safe_round(self, context: Dict[str, Any]) -> int:
+        try:
+            return int(context.get("round", 1))
+        except (TypeError, ValueError):
+            return 1
+
+    def _build_identity_kernel(self) -> str:
+        return (
+            "你是个人商业模式咨询教练。"
+            "保持阶段推进，同时用自然对话方式探索。"
+            "优先承接用户表达，避免机械复述规则。"
+        )
+
+    def _sanitize_qa_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
+        answer = self._truncate_text(item.get("answer", ""), 220)
+        return {
+            "round": item.get("round", ""),
+            "answer": answer,
+            "user_signal": self._truncate_text(answer, 72),
+        }
+
+    def _build_recent_qa_window(self, qa_history: Any) -> list:
+        if not isinstance(qa_history, list):
+            return []
+        tail = qa_history[-self.recent_window_rounds:] if len(qa_history) > self.recent_window_rounds else qa_history
+        result = []
+        for item in tail:
+            if isinstance(item, dict):
+                result.append(self._sanitize_qa_item(item))
+        return result
+
+    def _extract_stage_memory(self, stage_state: Any) -> Dict[str, Any]:
+        if not isinstance(stage_state, dict):
+            return {}
+
+        stage_def = stage_state.get("stage_definition") or {}
+        stage_runtime = stage_state.get("stage_runtime") or {}
+        snapshot = stage_runtime.get("stage_snapshot") or {}
+
+        findings = []
+        for item in (snapshot.get("findings") or [])[:3]:
+            if isinstance(item, dict):
+                text = self._truncate_text(item.get("content", ""), 64)
+                if text:
+                    findings.append(text)
+
+        judgements = []
+        for item in (snapshot.get("judgements") or [])[:2]:
+            if isinstance(item, dict):
+                text = self._truncate_text(item.get("content", ""), 80)
+                if text:
+                    judgements.append(text)
+
+        return {
+            "current_stage_id": stage_def.get("stage_id", ""),
+            "current_stage_name": stage_def.get("stage_name", ""),
+            "current_maturity": stage_runtime.get("current_maturity", ""),
+            "can_transition": bool(stage_runtime.get("can_transition", False)),
+            "stage_summary": self._truncate_text(snapshot.get("stage_summary", ""), 120),
+            "findings": findings,
+            "judgements": judgements,
+        }
+
+    def _extract_high_confidence_memory(self, stage_state: Any) -> Dict[str, Any]:
+        if not isinstance(stage_state, dict):
+            return {"confirmed": [], "rejected_or_questioned": []}
+
+        stage_runtime = stage_state.get("stage_runtime") or {}
+        snapshot = stage_runtime.get("stage_snapshot") or {}
+        confirmed = []
+        rejected_or_questioned = []
+
+        for item in (snapshot.get("judgements") or []):
+            if not isinstance(item, dict):
+                continue
+            status = str(item.get("status", "") or "").strip().lower()
+            text = self._truncate_text(item.get("content", ""), 88)
+            if not text:
+                continue
+            if status == "confirmed":
+                confirmed.append(text)
+            elif status in ("questioned", "rejected", "under_revision"):
+                rejected_or_questioned.append(text)
+
+        return {
+            "confirmed": confirmed[:3],
+            "rejected_or_questioned": rejected_or_questioned[:3],
+        }
+
+    def _build_long_term_memory(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        stage_state = context.get("stage_state")
+        confidence = self._extract_high_confidence_memory(stage_state)
+        summary = self._truncate_text(context.get("qa_history_summary", ""), 180)
+
+        memory = {
+            "confirmed": confidence["confirmed"],
+            "rejected_or_questioned": confidence["rejected_or_questioned"],
+            "history_summary": "",
+        }
+
+        if summary:
+            memory["history_summary"] = summary
+        return memory
+
+    def _build_runner_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        runner_context = dict(context)
+        recent_window = self._build_recent_qa_window(context.get("qa_history", []))
+        stage_memory = self._extract_stage_memory(context.get("stage_state"))
+        long_term_memory = self._build_long_term_memory(context)
+
+        runner_context["qa_history"] = recent_window
+        runner_context["identity_kernel"] = self._build_identity_kernel()
+        runner_context["stage_memory"] = stage_memory
+        runner_context["long_term_memory"] = long_term_memory
+        return runner_context
 
     def _restore_stage_state(self, context: Dict[str, Any]) -> StageState:
         """
@@ -201,8 +328,9 @@ class SelfValueBot:
         """
         context = self._build_context(kwargs)
         stage_state = self._restore_stage_state(context)
+        runner_context = self._build_runner_context(context)
 
-        prompt_result = self.runner.run("self_value.main", **context)
+        prompt_result = self.runner.run("self_value.main", **runner_context)
 
         combined_result = self.stage_orchestrator.update_after_turn(
             stage_state=stage_state,
@@ -249,10 +377,11 @@ class SelfValueBot:
         """
         context = self._build_context(kwargs)
         stage_state = self._restore_stage_state(context)
+        runner_context = self._build_runner_context(context)
 
         final_prompt_result: Optional[Dict[str, Any]] = None
 
-        for item in self.runner.stream("self_value.main", **context):
+        for item in self.runner.stream("self_value.main", **runner_context):
             event = item.get("event")
 
             if event == "chunk":
