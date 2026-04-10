@@ -1230,7 +1230,7 @@ export default {
     },
 
     async requestAdvice(payload) {
-      const response = await fetch('http://127.0.0.1:8002/api/advice/', {
+      const response = await fetch('/api/advice/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -1298,7 +1298,7 @@ export default {
         const qaHistoryWindow = this.buildQaHistoryWindow(this.qaHistory)
         const qaHistorySummary = this.buildQaHistorySummary(this.qaHistory)
 
-        const response = await fetch('http://127.0.0.1:8002/api/advice/stream/', {
+        const response = await fetch('/api/advice/stream/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1680,7 +1680,7 @@ export default {
       this.errorMessage = ''
 
       try {
-        const response = await fetch('http://127.0.0.1:8002/api/stage-feedback/', {
+        const response = await fetch('/api/stage-feedback/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1731,7 +1731,7 @@ export default {
       this.errorMessage = ''
 
       try {
-        const response = await fetch('http://127.0.0.1:8002/api/stage-transition/', {
+        const response = await fetch('/api/stage-transition/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2055,7 +2055,7 @@ export default {
 }
 
 .chat-msg__text {
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.72;
   color: #37342e;
   text-align: left;
@@ -2085,6 +2085,7 @@ export default {
 .chat-msg--assistant .chat-msg__text {
   max-width: 100%;
   padding: 0 2px;
+  margin:30px 0;
 }
 
 .chat-msg--user .chat-msg__text {
@@ -2115,7 +2116,7 @@ export default {
 
 .chat-composer__input {
   width: 100%;
-  min-height: 72px;
+  min-height: 102px;
   max-height: 160px;
   resize: none;
   border: 1px solid rgba(176, 164, 145, 0.32);
