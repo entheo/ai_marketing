@@ -71,3 +71,52 @@
 [2026-04-10T02:37:17.982671+00:00] auth: mode=ChatGPT account_id=ff9ec863-66db-4dcc-a236-42701e6a6198
 [2026-04-10T02:37:17.982859+00:00] auth: set ChatGPT-Account-Id header: ff9ec863-66db-4dcc-a236-42701e6a6198
 [2026-04-10T02:37:20.872061+00:00] http.list_tasks: env=<all> limit=20 cursor_in=<none> cursor_out=<none> items=9
+[2026-04-10T04:15:10.592670+00:00] startup: base_url=https://chatgpt.com/backend-api path_style=wham
+[2026-04-10T04:15:10.689513+00:00] auth: mode=ChatGPT account_id=ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T04:15:10.689719+00:00] auth: set ChatGPT-Account-Id header: ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T04:17:07.154908+00:00] startup: base_url=https://chatgpt.com/backend-api path_style=wham
+[2026-04-10T04:17:07.163029+00:00] auth: mode=ChatGPT account_id=ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T04:17:07.163413+00:00] auth: set ChatGPT-Account-Id header: ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T04:17:10.525993+00:00] http.list_tasks: env=<all> limit=20 cursor_in=<none> cursor_out=<none> items=9
+[2026-04-10T09:17:15.427132+00:00] startup: base_url=https://chatgpt.com/backend-api path_style=wham
+[2026-04-10T09:17:15.522342+00:00] auth: mode=ChatGPT account_id=ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T09:17:15.522584+00:00] auth: set ChatGPT-Account-Id header: ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T09:17:36.043507+00:00] startup: base_url=https://chatgpt.com/backend-api path_style=wham
+[2026-04-10T09:17:36.049481+00:00] auth: mode=ChatGPT account_id=ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T09:17:36.049669+00:00] auth: set ChatGPT-Account-Id header: ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T09:18:01.837546+00:00] startup: base_url=https://chatgpt.com/backend-api path_style=wham
+[2026-04-10T09:18:01.842824+00:00] auth: mode=ChatGPT account_id=ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T09:18:01.843017+00:00] auth: set ChatGPT-Account-Id header: ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T09:18:01.848381+00:00] startup: wham_force_internal=false ua=codex_cli_rs/0.118.0 (Mac OS 10.13.6; x86_64) Apple_Terminal/404.1 (codex_cloud_tasks_tui)
+[2026-04-10T09:18:01.939356+00:00] env: parsed SSH GitHub origin => entheo/ai_marketing
+[2026-04-10T09:18:01.942760+00:00] env: git origins: ["git@github.com:entheo/ai_marketing.git"]
+[2026-04-10T09:18:01.943082+00:00] env: parsed SSH GitHub origin => entheo/ai_marketing
+[2026-04-10T09:18:01.943288+00:00] env: GET https://chatgpt.com/backend-api/wham/environments/by-repo/github/entheo/ai_marketing
+[2026-04-10T09:18:06.874159+00:00] refresh load_tasks failed: deadline has elapsed
+[2026-04-10T09:18:16.952799+00:00] env: by-repo fetch failed for entheo/ai_marketing: error sending request for url (https://chatgpt.com/backend-api/wham/environments/by-repo/github/entheo/ai_marketing)
+[2026-04-10T09:18:16.953298+00:00] env: GET https://chatgpt.com/backend-api/wham/environments
+[2026-04-10T09:18:29.584252+00:00] startup: base_url=https://chatgpt.com/backend-api path_style=wham
+[2026-04-10T09:18:29.592115+00:00] auth: mode=ChatGPT account_id=ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T09:18:29.592363+00:00] auth: set ChatGPT-Account-Id header: ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T09:18:29.593283+00:00] startup: wham_force_internal=false ua=codex_cli_rs/0.118.0 (Mac OS 10.13.6; x86_64) Apple_Terminal/404.1 (codex_cloud_tasks_tui)
+[2026-04-10T09:18:29.612385+00:00] env: git origins: ["git@github.com:entheo/ai_marketing.git"]
+[2026-04-10T09:18:29.612387+00:00] env: parsed SSH GitHub origin => entheo/ai_marketing
+[2026-04-10T09:18:29.612565+00:00] env: parsed SSH GitHub origin => entheo/ai_marketing
+[2026-04-10T09:18:29.612799+00:00] env: GET https://chatgpt.com/backend-api/wham/environments/by-repo/github/entheo/ai_marketing
+[2026-04-10T09:18:32.373268+00:00] env: status=200 OK content-type=application/json
+[2026-04-10T09:18:32.375687+00:00] env: by-repo returned 1 env(s) for entheo/ai_marketing
+[2026-04-10T09:18:32.375966+00:00] env: single environment available; selecting it
+[2026-04-10T09:18:32.377625+00:00] env.select: autodetected id=69c8ae8af46881918752b9f40bfd5f97 label=entheo/ai_marketing
+[2026-04-10T09:18:32.400514+00:00] env: parsed SSH GitHub origin => entheo/ai_marketing
+[2026-04-10T09:18:32.468276+00:00] http.list_tasks: env=<all> limit=20 cursor_in=<none> cursor_out=<none> items=10
+[2026-04-10T09:18:32.468525+00:00] refresh.drop: env=<all> current=69c8ae8af46881918752b9f40bfd5f97
+[2026-04-10T09:18:32.666116+00:00] env: status=200 OK content-type=application/json
+[2026-04-10T09:18:33.113180+00:00] http.list_tasks: env=69c8ae8af46881918752b9f40bfd5f97 limit=20 cursor_in=<none> cursor_out=<none> items=10
+[2026-04-10T09:18:33.113455+00:00] refresh.apply: env=69c8ae8af46881918752b9f40bfd5f97 count=6
+[2026-04-10T09:18:34.438664+00:00] env: status=200 OK content-type=application/json
+[2026-04-10T09:18:34.948727+00:00] env: status=200 OK content-type=application/json
+[2026-04-10T09:18:36.565180+00:00] env: status=200 OK content-type=application/json
+[2026-04-10T09:18:47.288952+00:00] startup: base_url=https://chatgpt.com/backend-api path_style=wham
+[2026-04-10T09:18:47.294936+00:00] auth: mode=ChatGPT account_id=ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T09:18:47.295134+00:00] auth: set ChatGPT-Account-Id header: ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T09:18:49.694771+00:00] http.list_tasks: env=<all> limit=20 cursor_in=<none> cursor_out=<none> items=10

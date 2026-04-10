@@ -108,10 +108,12 @@ class SelfValueBot:
 
     def _sanitize_qa_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
         answer = self._truncate_text(item.get("answer", ""), 220)
+        question_intent = self._truncate_text(item.get("question_intent", "") or item.get("question", ""), 56)
         return {
             "round": item.get("round", ""),
             "answer": answer,
             "user_signal": self._truncate_text(answer, 72),
+            "question_intent": question_intent,
         }
 
     def _build_recent_qa_window(self, qa_history: Any) -> list:
