@@ -65,6 +65,9 @@ class PromptAdapter:
 - round: {round}
 - answer: {answer}
 - qa_history: {qa_history}
+- identity_kernel: {identity_kernel}
+- stage_memory: {stage_memory}
+- long_term_memory: {long_term_memory}
 """.strip()
 
     # 输出结构参考
@@ -305,6 +308,11 @@ class PromptAdapter:
         """
         if value is None:
             return ""
+        if isinstance(value, (dict, list)):
+            try:
+                return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+            except Exception:
+                return str(value)
         return str(value)
 
     def _normalize_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
@@ -324,6 +332,9 @@ class PromptAdapter:
         normalized.setdefault("round", 1)
         normalized.setdefault("answer", "")
         normalized.setdefault("qa_history", [])
+        normalized.setdefault("identity_kernel", "")
+        normalized.setdefault("stage_memory", {})
+        normalized.setdefault("long_term_memory", {})
         return normalized
 
     def _build_input_block(self, context: Dict[str, Any]) -> str:
@@ -338,6 +349,9 @@ class PromptAdapter:
             round=self._format_value(context.get("round")),
             answer=self._format_value(context.get("answer")),
             qa_history=self._format_value(context.get("qa_history")),
+            identity_kernel=self._format_value(context.get("identity_kernel")),
+            stage_memory=self._format_value(context.get("stage_memory")),
+            long_term_memory=self._format_value(context.get("long_term_memory")),
         )
 
     def compile(self, raw_prompt: str, context: Dict[str, Any]) -> str:
