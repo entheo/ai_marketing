@@ -670,7 +670,7 @@ export default {
       }
 
       this.conversationId = this.buildConversationId()
-      this.fetchFirstQuestion()
+      this.applyInitializationQuestion()
     },
 
     abortInFlightRequests() {
@@ -845,6 +845,29 @@ export default {
 
     bindMainDisplayTextFromMessage(message, fallbackText = '') {
       this.currentMainDisplayText = this.extractMainDisplayText(message) || fallbackText || ''
+    },
+
+    getInitializationQuestion() {
+      return '回顾过去5年，哪件事你做得比大多数人轻松，且结果出色？（即使你觉得“这很简单”）'
+    },
+
+    applyInitializationQuestion() {
+      const firstQuestion = this.getInitializationQuestion()
+      const message = {
+        question: firstQuestion,
+        text: firstQuestion,
+        question_length_hint: this.inferQuestionLengthHint(firstQuestion),
+        question_type: 'text',
+        options: []
+      }
+
+      this.loading = false
+      this.errorMessage = ''
+      this.bindQuestionMetaFromMessage(message, firstQuestion)
+      this.bindMainDisplayTextFromMessage(message, firstQuestion)
+      this.appendDialogItem('assistant', firstQuestion)
+      this.persistLocalSessionState()
+      this.playLocalQuestion(firstQuestion, message.question_length_hint)
     },
 
     extractQuestionText(message) {
