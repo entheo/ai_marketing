@@ -26,7 +26,7 @@
                 <button
                   class="chat-stage-bar__restart"
                   type="button"
-                  :disabled="isQuestionBusy"
+                  :disabled="isQuestionBusy || loading"
                   @click="openRestartConfirm"
                 >
                   重新开始
@@ -346,7 +346,10 @@ export default {
       sessionStartedAt: Date.now(),
       elapsedBeforeSessionMs: 0,
       clockNowMs: Date.now(),
-      restartConfirmOpen: false
+      restartConfirmOpen: false,
+      requestVersion: 0,
+      firstQuestionAbortController: null,
+      streamAbortController: null
     }
   },
 
@@ -500,8 +503,7 @@ export default {
       if (windowSize <= 0) return []
       return list.slice(-windowSize).map(item => ({
         round: item?.round ?? '',
-        answer: String(item?.answer || '').trim().slice(0, 220),
-        question_intent: String(item?.question || '').replace(/\s+/g, ' ').trim().slice(0, 30)
+        answer: String(item?.answer || '').trim().slice(0, 220)
       }))
     },
 
@@ -514,9 +516,8 @@ export default {
 
       const chunks = oldItems.slice(-6).map(item => {
         const round = item?.round ?? ''
-        const question = String(item?.question || '').replace(/\s+/g, ' ').trim().slice(0, 24)
         const answer = String(item?.answer || '').replace(/\s+/g, ' ').trim().slice(0, 48)
-        return `R${round}:QI=${question};A=${answer}`
+        return `R${round}:A=${answer}`
       })
 
       return chunks.join(' | ').slice(0, maxChars)
@@ -600,7 +601,7 @@ export default {
     },
 
     openRestartConfirm() {
-      if (this.isQuestionBusy) return
+      if (this.isQuestionBusy || this.loading) return
       this.restartConfirmOpen = true
     },
 
@@ -612,6 +613,8 @@ export default {
       if (this.isQuestionBusy) return
 
       this.restartConfirmOpen = false
+      this.requestVersion += 1
+      this.abortInFlightRequests()
       this.resetAskStreamingState()
       this.requestingQuestion = false
       this.playingQuestion = false
@@ -668,6 +671,17 @@ export default {
 
       this.conversationId = this.buildConversationId()
       this.fetchFirstQuestion()
+    },
+
+    abortInFlightRequests() {
+      if (this.firstQuestionAbortController) {
+        this.firstQuestionAbortController.abort()
+        this.firstQuestionAbortController = null
+      }
+      if (this.streamAbortController) {
+        this.streamAbortController.abort()
+        this.streamAbortController = null
+      }
     },
 
     appendDialogItem(role, text) {
@@ -1167,7 +1181,8 @@ export default {
       return this.extractQuestionFromJsonText(raw)
     },
 
-    handleStreamPayload(payload) {
+    handleStreamPayload(payload, requestVersion) {
+      if (requestVersion !== this.requestVersion) return
       if (payload.event === 'error') {
         throw new Error(payload.message || '流式生成失败')
       }
@@ -1198,7 +1213,7 @@ export default {
       }
     },
 
-    async readNdjsonStream(response) {
+    async readNdjsonStream(response, requestVersion) {
       const reader = response.body.getReader()
       const decoder = new TextDecoder('utf-8')
       let buffer = ''
@@ -1217,25 +1232,28 @@ export default {
         buffer = lines.pop() || ''
 
         for (const line of lines) {
+          if (requestVersion !== this.requestVersion) return
           if (!line.trim()) continue
           const payload = JSON.parse(line)
-          this.handleStreamPayload(payload)
+          this.handleStreamPayload(payload, requestVersion)
         }
 
         if (done) break
       }
 
       if (buffer.trim()) {
+        if (requestVersion !== this.requestVersion) return
         const payload = JSON.parse(buffer.trim())
-        this.handleStreamPayload(payload)
+        this.handleStreamPayload(payload, requestVersion)
       }
     },
 
-    async requestAdvice(payload) {
-      const response = await fetch('http://127.0.0.1:8002/api/advice/', {
+    async requestAdvice(payload, signal) {
+      const response = await fetch('/api/advice/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal
       })
 
       const data = await response.json()
@@ -1250,6 +1268,9 @@ export default {
     async fetchFirstQuestion() {
       this.loading = true
       this.errorMessage = ''
+      const requestVersion = this.requestVersion
+      const controller = new AbortController()
+      this.firstQuestionAbortController = controller
 
       try {
         const data = await this.requestAdvice({
@@ -1259,12 +1280,18 @@ export default {
           answer: '',
           qa_history: [],
           stage_state: null
-        })
+        }, controller.signal)
+
+        if (requestVersion !== this.requestVersion) return
 
         this.applyFirstQuestionPayload(data)
       } catch (error) {
+        if (error?.name === 'AbortError') return
         this.errorMessage = `获取第一题失败：${error.message}`
       } finally {
+        if (this.firstQuestionAbortController === controller) {
+          this.firstQuestionAbortController = null
+        }
         this.loading = false
       }
     },
@@ -1297,12 +1324,16 @@ export default {
       this.persistLocalSessionState()
 
       try {
+        const requestVersion = this.requestVersion
         const qaHistoryWindow = this.buildQaHistoryWindow(this.qaHistory)
         const qaHistorySummary = this.buildQaHistorySummary(this.qaHistory)
+        const controller = new AbortController()
+        this.streamAbortController = controller
 
-        const response = await fetch('http://127.0.0.1:8002/api/advice/stream/', {
+        const response = await fetch('/api/advice/stream/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
           body: JSON.stringify({
             type: 'self_value',
             conversation_id: this.conversationId,
@@ -1319,10 +1350,13 @@ export default {
           throw new Error('流式请求失败')
         }
 
-        await this.readNdjsonStream(response)
+        await this.readNdjsonStream(response, requestVersion)
       } catch (error) {
+        if (error?.name === 'AbortError') return
         this.errorMessage = `获取下一题失败：${error.message}`
         this.finishAskStreaming()
+      } finally {
+        this.streamAbortController = null
       }
     },
 
@@ -1682,7 +1716,7 @@ export default {
       this.errorMessage = ''
 
       try {
-        const response = await fetch('http://127.0.0.1:8002/api/stage-feedback/', {
+        const response = await fetch('/api/stage-feedback/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1733,7 +1767,7 @@ export default {
       this.errorMessage = ''
 
       try {
-        const response = await fetch('http://127.0.0.1:8002/api/stage-transition/', {
+        const response = await fetch('/api/stage-transition/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1777,6 +1811,7 @@ export default {
   },
 
   beforeUnmount() {
+    this.abortInFlightRequests()
     if (this.playbackRafId) {
       window.cancelAnimationFrame(this.playbackRafId)
       this.playbackRafId = null
@@ -2057,7 +2092,7 @@ export default {
 }
 
 .chat-msg__text {
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.72;
   color: #37342e;
   text-align: left;
@@ -2087,6 +2122,7 @@ export default {
 .chat-msg--assistant .chat-msg__text {
   max-width: 100%;
   padding: 0 2px;
+  margin:30px 0;
 }
 
 .chat-msg--user .chat-msg__text {
@@ -2117,7 +2153,7 @@ export default {
 
 .chat-composer__input {
   width: 100%;
-  min-height: 72px;
+  min-height: 102px;
   max-height: 160px;
   resize: none;
   border: 1px solid rgba(176, 164, 145, 0.32);
