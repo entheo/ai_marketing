@@ -26,7 +26,7 @@
                 <button
                   class="chat-stage-bar__restart"
                   type="button"
-                  :disabled="isQuestionBusy"
+                  :disabled="isQuestionBusy || loading"
                   @click="openRestartConfirm"
                 >
                   重新开始
@@ -346,7 +346,10 @@ export default {
       sessionStartedAt: Date.now(),
       elapsedBeforeSessionMs: 0,
       clockNowMs: Date.now(),
-      restartConfirmOpen: false
+      restartConfirmOpen: false,
+      requestVersion: 0,
+      firstQuestionAbortController: null,
+      streamAbortController: null
     }
   },
 
@@ -598,7 +601,7 @@ export default {
     },
 
     openRestartConfirm() {
-      if (this.isQuestionBusy) return
+      if (this.isQuestionBusy || this.loading) return
       this.restartConfirmOpen = true
     },
 
@@ -610,6 +613,8 @@ export default {
       if (this.isQuestionBusy) return
 
       this.restartConfirmOpen = false
+      this.requestVersion += 1
+      this.abortInFlightRequests()
       this.resetAskStreamingState()
       this.requestingQuestion = false
       this.playingQuestion = false
@@ -666,6 +671,17 @@ export default {
 
       this.conversationId = this.buildConversationId()
       this.fetchFirstQuestion()
+    },
+
+    abortInFlightRequests() {
+      if (this.firstQuestionAbortController) {
+        this.firstQuestionAbortController.abort()
+        this.firstQuestionAbortController = null
+      }
+      if (this.streamAbortController) {
+        this.streamAbortController.abort()
+        this.streamAbortController = null
+      }
     },
 
     appendDialogItem(role, text) {
@@ -1165,7 +1181,8 @@ export default {
       return this.extractQuestionFromJsonText(raw)
     },
 
-    handleStreamPayload(payload) {
+    handleStreamPayload(payload, requestVersion) {
+      if (requestVersion !== this.requestVersion) return
       if (payload.event === 'error') {
         throw new Error(payload.message || '流式生成失败')
       }
@@ -1196,7 +1213,7 @@ export default {
       }
     },
 
-    async readNdjsonStream(response) {
+    async readNdjsonStream(response, requestVersion) {
       const reader = response.body.getReader()
       const decoder = new TextDecoder('utf-8')
       let buffer = ''
@@ -1215,25 +1232,28 @@ export default {
         buffer = lines.pop() || ''
 
         for (const line of lines) {
+          if (requestVersion !== this.requestVersion) return
           if (!line.trim()) continue
           const payload = JSON.parse(line)
-          this.handleStreamPayload(payload)
+          this.handleStreamPayload(payload, requestVersion)
         }
 
         if (done) break
       }
 
       if (buffer.trim()) {
+        if (requestVersion !== this.requestVersion) return
         const payload = JSON.parse(buffer.trim())
-        this.handleStreamPayload(payload)
+        this.handleStreamPayload(payload, requestVersion)
       }
     },
 
-    async requestAdvice(payload) {
+    async requestAdvice(payload, signal) {
       const response = await fetch('/api/advice/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal
       })
 
       const data = await response.json()
@@ -1248,6 +1268,9 @@ export default {
     async fetchFirstQuestion() {
       this.loading = true
       this.errorMessage = ''
+      const requestVersion = this.requestVersion
+      const controller = new AbortController()
+      this.firstQuestionAbortController = controller
 
       try {
         const data = await this.requestAdvice({
@@ -1257,12 +1280,18 @@ export default {
           answer: '',
           qa_history: [],
           stage_state: null
-        })
+        }, controller.signal)
+
+        if (requestVersion !== this.requestVersion) return
 
         this.applyFirstQuestionPayload(data)
       } catch (error) {
+        if (error?.name === 'AbortError') return
         this.errorMessage = `获取第一题失败：${error.message}`
       } finally {
+        if (this.firstQuestionAbortController === controller) {
+          this.firstQuestionAbortController = null
+        }
         this.loading = false
       }
     },
@@ -1295,12 +1324,16 @@ export default {
       this.persistLocalSessionState()
 
       try {
+        const requestVersion = this.requestVersion
         const qaHistoryWindow = this.buildQaHistoryWindow(this.qaHistory)
         const qaHistorySummary = this.buildQaHistorySummary(this.qaHistory)
+        const controller = new AbortController()
+        this.streamAbortController = controller
 
         const response = await fetch('/api/advice/stream/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
           body: JSON.stringify({
             type: 'self_value',
             conversation_id: this.conversationId,
@@ -1317,10 +1350,13 @@ export default {
           throw new Error('流式请求失败')
         }
 
-        await this.readNdjsonStream(response)
+        await this.readNdjsonStream(response, requestVersion)
       } catch (error) {
+        if (error?.name === 'AbortError') return
         this.errorMessage = `获取下一题失败：${error.message}`
         this.finishAskStreaming()
+      } finally {
+        this.streamAbortController = null
       }
     },
 
@@ -1775,6 +1811,7 @@ export default {
   },
 
   beforeUnmount() {
+    this.abortInFlightRequests()
     if (this.playbackRafId) {
       window.cancelAnimationFrame(this.playbackRafId)
       this.playbackRafId = null
