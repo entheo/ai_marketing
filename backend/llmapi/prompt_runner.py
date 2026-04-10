@@ -32,6 +32,13 @@ class PromptRunner:
     """
 
     SUMMARY_LIKE_STATUS = ("stage_summary", "final_report", "action_plan", "draft_report")
+    SYSTEM_RULE_CARD = (
+        "你是个人商业模式咨询教练。"
+        "必须遵守提问交互规则："
+        "1) 每轮只问一个核心问题；"
+        "2) 先承接用户上一轮关键信号，再推进提问；"
+        "3) 问题要具体、可回答，避免模板化追问。"
+    )
 
     def __init__(self, client=None, model=None):
         """
@@ -48,14 +55,29 @@ class PromptRunner:
         self.force_summary_round = 8
         self.max_rewrite_attempts = 1
 
-    def get_messages(self, rendered_prompt: str):
+    def _build_round_rule_reminder(self, context: Dict[str, Any]) -> str:
+        round_num = self._safe_round(context or {})
+        if round_num < 20:
+            return ""
+        return (
+            "\n\n【晚轮规则重申】\n"
+            "- 继续严格遵守提问交互规则：单轮单问题、先承接后推进、问题具体可回答。\n"
+            "- 禁止使用空泛追问（如“还有吗”“再说说”）。"
+        )
+
+    def get_messages(self, rendered_prompt: str, context: Dict[str, Any] = None):
         """
         构建 messages。
         """
+        prompt_with_reminder = f"{rendered_prompt}{self._build_round_rule_reminder(context or {})}"
         return [
             {
+                "role": "system",
+                "content": self.SYSTEM_RULE_CARD,
+            },
+            {
                 "role": "user",
-                "content": rendered_prompt
+                "content": prompt_with_reminder
             }
         ]
 
@@ -524,7 +546,7 @@ class PromptRunner:
 请直接输出最终 JSON。
 """.strip()
 
-        messages = self.get_messages(rewrite_prompt)
+        messages = self.get_messages(rewrite_prompt, context=context)
 
         try:
             response = self.client.chat.completions.create(
@@ -700,7 +722,7 @@ class PromptRunner:
 请直接输出最终 JSON。
 """.strip()
 
-        messages = self.get_messages(rewrite_prompt)
+        messages = self.get_messages(rewrite_prompt, context=context)
 
         try:
             response = self.client.chat.completions.create(
@@ -816,7 +838,7 @@ class PromptRunner:
             context=kwargs,
         )
 
-        messages = self.get_messages(rendered_prompt)
+        messages = self.get_messages(rendered_prompt, context=kwargs)
 
         response = self.client.chat.completions.create(
             model=self.model,
@@ -862,7 +884,7 @@ class PromptRunner:
             context=kwargs,
         )
 
-        messages = self.get_messages(rendered_prompt)
+        messages = self.get_messages(rendered_prompt, context=kwargs)
 
         response = self.client.chat.completions.create(
             model=self.model,

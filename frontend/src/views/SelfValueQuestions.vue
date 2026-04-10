@@ -486,6 +486,40 @@ export default {
   },
 
   methods: {
+    getQaHistoryWindowSize() {
+      return 6
+    },
+
+    getQaHistorySummaryMaxChars() {
+      return 500
+    },
+
+    buildQaHistoryWindow(history) {
+      const list = Array.isArray(history) ? history : []
+      const windowSize = this.getQaHistoryWindowSize()
+      if (windowSize <= 0) return []
+      return list.slice(-windowSize).map(item => ({
+        round: item?.round ?? '',
+        answer: String(item?.answer || '').trim().slice(0, 220)
+      }))
+    },
+
+    buildQaHistorySummary(history) {
+      const list = Array.isArray(history) ? history : []
+      const windowSize = this.getQaHistoryWindowSize()
+      const maxChars = this.getQaHistorySummaryMaxChars()
+      const oldItems = list.slice(0, Math.max(0, list.length - windowSize))
+      if (!oldItems.length) return ''
+
+      const chunks = oldItems.slice(-6).map(item => {
+        const round = item?.round ?? ''
+        const answer = String(item?.answer || '').replace(/\s+/g, ' ').trim().slice(0, 48)
+        return `R${round}:A=${answer}`
+      })
+
+      return chunks.join(' | ').slice(0, maxChars)
+    },
+
     getSessionStorageKey() {
       return 'self_value_questions_session_v1'
     },
@@ -1196,7 +1230,7 @@ export default {
     },
 
     async requestAdvice(payload) {
-      const response = await fetch('/api/advice/', {
+      const response = await fetch('http://127.0.0.1:8002/api/advice/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -1261,7 +1295,10 @@ export default {
       this.persistLocalSessionState()
 
       try {
-        const response = await fetch('/api/advice/stream/', {
+        const qaHistoryWindow = this.buildQaHistoryWindow(this.qaHistory)
+        const qaHistorySummary = this.buildQaHistorySummary(this.qaHistory)
+
+        const response = await fetch('http://127.0.0.1:8002/api/advice/stream/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1269,7 +1306,8 @@ export default {
             conversation_id: this.conversationId,
             round: this.round,
             answer: currentAnswer,
-            qa_history: this.qaHistory,
+            qa_history: qaHistoryWindow,
+            qa_history_summary: qaHistorySummary,
             stage_state: this.stageState,
             pending_insight_candidate: this.pendingInsightCandidate
           })
@@ -1642,7 +1680,7 @@ export default {
       this.errorMessage = ''
 
       try {
-        const response = await fetch('/api/stage-feedback/', {
+        const response = await fetch('http://127.0.0.1:8002/api/stage-feedback/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1693,7 +1731,7 @@ export default {
       this.errorMessage = ''
 
       try {
-        const response = await fetch('/api/stage-transition/', {
+        const response = await fetch('http://127.0.0.1:8002/api/stage-transition/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

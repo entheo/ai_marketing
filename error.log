@@ -46,3 +46,28 @@
 [2026-04-04T14:42:59.825427+00:00] auth: mode=ChatGPT account_id=ff9ec863-66db-4dcc-a236-42701e6a6198
 [2026-04-04T14:42:59.825620+00:00] auth: set ChatGPT-Account-Id header: ff9ec863-66db-4dcc-a236-42701e6a6198
 [2026-04-04T14:43:04.490751+00:00] http.list_tasks: env=<all> limit=20 cursor_in=<none> cursor_out=<none> items=6
+[2026-04-10T02:32:40.568240+00:00] startup: base_url=https://chatgpt.com/backend-api path_style=wham
+[2026-04-10T02:32:40.655470+00:00] auth: mode=ChatGPT account_id=ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T02:32:40.655692+00:00] auth: set ChatGPT-Account-Id header: ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T02:32:40.661117+00:00] startup: wham_force_internal=false ua=codex_cli_rs/0.118.0 (Mac OS 10.13.6; x86_64) Apple_Terminal/404.1 (codex_cloud_tasks_tui)
+[2026-04-10T02:32:40.695375+00:00] env: parsed SSH GitHub origin => entheo/ai_marketing
+[2026-04-10T02:32:40.696520+00:00] env: git origins: ["git@github.com:entheo/ai_marketing.git"]
+[2026-04-10T02:32:40.696799+00:00] env: parsed SSH GitHub origin => entheo/ai_marketing
+[2026-04-10T02:32:40.697005+00:00] env: GET https://chatgpt.com/backend-api/wham/environments/by-repo/github/entheo/ai_marketing
+[2026-04-10T02:32:45.671481+00:00] refresh load_tasks failed: deadline has elapsed
+[2026-04-10T02:34:52.326129+00:00] startup: base_url=https://chatgpt.com/backend-api path_style=wham
+[2026-04-10T02:34:52.410752+00:00] auth: mode=ChatGPT account_id=ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T02:34:52.410932+00:00] auth: set ChatGPT-Account-Id header: ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T02:34:52.417978+00:00] startup: wham_force_internal=false ua=codex_cli_rs/0.118.0 (Mac OS 10.13.6; x86_64) Apple_Terminal/404.1 (codex_cloud_tasks_tui)
+[2026-04-10T02:34:52.452216+00:00] env: parsed SSH GitHub origin => entheo/ai_marketing
+[2026-04-10T02:34:52.452540+00:00] env: git origins: ["git@github.com:entheo/ai_marketing.git"]
+[2026-04-10T02:34:52.452750+00:00] env: parsed SSH GitHub origin => entheo/ai_marketing
+[2026-04-10T02:34:52.453+00:00] env: GET https://chatgpt.com/backend-api/wham/environments/by-repo/github/entheo/ai_marketing
+[2026-04-10T02:34:57.427622+00:00] refresh load_tasks failed: deadline has elapsed
+[2026-04-10T02:36:04.966022+00:00] startup: base_url=https://chatgpt.com/backend-api path_style=wham
+[2026-04-10T02:36:05.045803+00:00] auth: mode=ChatGPT account_id=ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T02:36:05.046013+00:00] auth: set ChatGPT-Account-Id header: ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T02:37:17.974271+00:00] startup: base_url=https://chatgpt.com/backend-api path_style=wham
+[2026-04-10T02:37:17.982671+00:00] auth: mode=ChatGPT account_id=ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T02:37:17.982859+00:00] auth: set ChatGPT-Account-Id header: ff9ec863-66db-4dcc-a236-42701e6a6198
+[2026-04-10T02:37:20.872061+00:00] http.list_tasks: env=<all> limit=20 cursor_in=<none> cursor_out=<none> items=9

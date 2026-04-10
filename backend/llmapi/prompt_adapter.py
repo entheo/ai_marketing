@@ -334,7 +334,7 @@ class PromptAdapter:
         normalized.setdefault("qa_history", [])
         normalized.setdefault("identity_kernel", "")
         normalized.setdefault("stage_memory", {})
-        normalized.setdefault("long_term_memory", "")
+        normalized.setdefault("long_term_memory", {})
         return normalized
 
     def _build_input_block(self, context: Dict[str, Any]) -> str:
