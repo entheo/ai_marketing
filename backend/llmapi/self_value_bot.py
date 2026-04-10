@@ -87,6 +87,52 @@ class SelfValueBot:
         context.update(kwargs or {})
         return context
 
+    def _is_initialization_turn(self, context: Dict[str, Any]) -> bool:
+        round_num = self._safe_round(context)
+        answer = str(context.get("answer") or "").strip()
+        qa_history = context.get("qa_history", [])
+        return round_num <= 1 and not answer and (not isinstance(qa_history, list) or len(qa_history) == 0)
+
+    def _get_initialization_question(self) -> str:
+        return "回顾过去5年，哪件事你做得比大多数人轻松，且结果出色？（即使你觉得'这很简单'）"
+
+    def _build_initialization_frontend_response(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        stage_state_obj = self.stage_orchestrator.create_initial_state()
+        stage_state = stage_state_obj.to_dict()
+        resume_snapshot = None
+        conversation_id = str(context.get("conversation_id") or "").strip()
+
+        if conversation_id:
+            snapshot_obj = self.stage_orchestrator.stage_layer.build_resume_snapshot(  # noqa: SLF001
+                conversation_id=conversation_id,
+                stage_state=stage_state_obj,
+            )
+            resume_snapshot = snapshot_obj.to_dict()
+
+        question = self._get_initialization_question()
+        message = {
+            "status": "ask",
+            "question_type": "text",
+            "question": question,
+            "options": [],
+            "summary": "",
+            "report": "",
+            "next_action": "",
+            "question_length_hint": "long" if len(question) > 30 else "medium",
+            "should_end": False,
+            "can_summarize": False,
+        }
+
+        return {
+            "message": message,
+            "stage": self.response_formatter._build_stage_block(stage_state),  # noqa: SLF001
+            "meta": self.response_formatter._build_meta_block(stage_state, resume_snapshot),  # noqa: SLF001
+            "stage_state": stage_state,
+            "candidate_insight": "",
+            "candidate_id": "",
+            "confirmed_insight": "",
+        }
+
     def _truncate_text(self, text: Any, max_chars: int) -> str:
         value = str(text or "").strip()
         if len(value) <= max_chars:
@@ -355,6 +401,9 @@ class SelfValueBot:
         }
         """
         context = self._build_context(kwargs)
+        if self._is_initialization_turn(context):
+            return self._build_initialization_frontend_response(context)
+
         combined_result = self.self_value_response(**kwargs)
         formatted = self.response_formatter.format_response(combined_result)
         formatted.update(
@@ -376,6 +425,27 @@ class SelfValueBot:
         - error: 错误事件
         """
         context = self._build_context(kwargs)
+        if self._is_initialization_turn(context):
+            payload = self._build_initialization_frontend_response(context)
+            yield {
+                "event": "message_done",
+                "data": {
+                    **(payload.get("message") or {}),
+                    "candidate_insight": "",
+                    "candidate_id": "",
+                    "confirmed_insight": "",
+                }
+            }
+            yield {
+                "event": "stage_done",
+                "data": {
+                    "stage": payload.get("stage") or {},
+                    "meta": payload.get("meta") or {},
+                    "stage_state": payload.get("stage_state") or {},
+                }
+            }
+            return
+
         stage_state = self._restore_stage_state(context)
         runner_context = self._build_runner_context(context)
 
